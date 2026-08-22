@@ -7,6 +7,13 @@ import {
 /** Max safe value storable in the DP's Int32 rows (profit sums must stay below). */
 export const MAX_TOTAL_PROFIT = 0x7fffffff;
 
+/**
+ * Max capacity. Keeps every integer sum/product in the solver (including the
+ * fathom bound `(baseP + p)·λw + λp·slack`, with factors up to ~2^31 and C)
+ * strictly inside 2^53, where IEEE-754 doubles are still exact integers.
+ */
+export const MAX_CAPACITY = 0x1fffff; // 2^21 − 1
+
 function isNonNegInt(n: number): boolean {
   return Number.isInteger(n) && n >= 0;
 }
@@ -22,6 +29,12 @@ function isNonNegInt(n: number): boolean {
 export function validateProblem(problem: KnapsackProblem): void {
   if (!isNonNegInt(problem.capacity)) {
     throw new KnapsackValidationError("capacity must be a non-negative integer");
+  }
+  if (problem.capacity > MAX_CAPACITY) {
+    throw new KnapsackValidationError(
+      `capacity must stay below ${MAX_CAPACITY + 1} (got ${problem.capacity}); ` +
+        "scale weights down or solve per subsystem",
+    );
   }
   if (problem.groups.length === 0) {
     throw new KnapsackValidationError("at least one group is required");

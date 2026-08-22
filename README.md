@@ -51,6 +51,9 @@ result.stats;         // reduction counts, dpRequired, dpCellsVisited
 `weight` and `profit` are non-negative integers (validated; throws
 `KnapsackValidationError` otherwise). "Choose nothing" semantics are modeled
 explicitly with a zero-weight zero-profit option — agent-kernel's purge.
+Capacity is a non-negative integer below 2²¹ (keeps every internal product
+inside exact-double range); option ids must be unique within a group; group
+ids globally unique.
 
 ## Pipeline
 
