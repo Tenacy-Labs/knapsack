@@ -98,6 +98,15 @@ bun test            # 307 tests incl. brute-force cross-check
 bun run bench       # the numbers above
 ```
 
+## Documentation
+
+- **[docs/paper.md](docs/paper.md)** — the scientific write-up: problem
+  statement, algorithm, correctness propositions, adversarial validation,
+  measured results.
+- **[docs/research/](docs/research/)** — the full research corpus this
+  implementation was extracted from (solver survey, classical exact-MCKP
+  extraction, production-implementation reviews, online-policy papers).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
