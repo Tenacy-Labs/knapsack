@@ -175,17 +175,24 @@ message — never a silently wrong answer.
 
 ### 3.3 The arithmetic envelope
 
-Two ceilings exist because the solver's exactness is bounded by machine
+Three ceilings exist because the solver's exactness is bounded by machine
 integer arithmetic, and the library prefers failing loudly to being silently
 wrong:
 
 1. **Σ per-group max profits < 2³¹** (`MAX_TOTAL_PROFIT`): DP value rows are
    `Int32Array`; a profit sum at or beyond 2³¹ would wrap.
-2. **Capacity < 2²¹** (`MAX_CAPACITY`): the fathom bound's largest
-   intermediate product is `(baseP + p)·λw + λp·slack` with factors up to
-   ~2³¹ and C; keeping every such product strictly below 2⁵³ — where
-   IEEE-754 doubles are still exact integers — requires C < 2²¹. Below both
-   ceilings, every integer the solver computes is exact.
+2. **Capacity < 2²¹** (`MAX_CAPACITY`): bounds the fathom slack term
+   `λp·slack` (λp < 2³¹, slack ≤ C) and every DP index.
+3. **(Σ per-group max profits) · (largest weight) < 2⁵³** (`MAX_EXACT_PRODUCT`,
+   enforced adaptively): every ordering product in the pipeline — hull
+   cross-products, walk argmax compares, fathom bounds — is a product of a
+   profit magnitude (bounded by Σ max profits) and a weight magnitude
+   (bounded by the largest weight, which is NOT bounded by C). Keeping each
+   such product strictly below 2⁵³ — where IEEE-754 doubles are still exact
+   integers — makes every comparison exact by construction. The check is
+   adaptive rather than a flat weight cap: small-profit problems admit
+   huge weights. Below all three ceilings, every integer the solver
+   computes is exact.
 
 The only floating-point value produced anywhere is the reported `lpUpper`
 bound, which is never used for a decision.

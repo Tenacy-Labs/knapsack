@@ -8,11 +8,23 @@ import {
 export const MAX_TOTAL_PROFIT = 0x7fffffff;
 
 /**
- * Max capacity. Keeps every integer sum/product in the solver (including the
- * fathom bound `(baseP + p)·λw + λp·slack`, with factors up to ~2^31 and C)
- * strictly inside 2^53, where IEEE-754 doubles are still exact integers.
+ * Max capacity. Bounds the fathom slack term `λp·slack` (λp < 2³¹,
+ * slack ≤ C) and every DP index: C < 2²¹ keeps those products < 2⁵².
+ *
+ * NOTE: this alone does NOT bound λw in the fathom product
+ * `(baseP + p)·λw` — λw is a weight DIFF, bounded by the largest weight in
+ * the problem, not by C. That bound is enforced separately and adaptively
+ * in validateProblem (Σmax-profit · max-weight < 2⁵³).
  */
 export const MAX_CAPACITY = 0x1fffff; // 2^21 − 1
+
+/**
+ * Every ordering product in the pipeline (hull cross-products, walk argmax
+ * compares, fathom bounds) is (profit magnitude ≤ Σ per-group max profits)
+ * × (weight magnitude ≤ largest weight). Staying below 2^53 keeps each
+ * product an exact IEEE-754 double integer.
+ */
+export const MAX_EXACT_PRODUCT = 2 ** 53;
 
 function isNonNegInt(n: number): boolean {
   return Number.isInteger(n) && n >= 0;
@@ -36,11 +48,15 @@ export function validateProblem(problem: KnapsackProblem): void {
         "scale weights down or solve per subsystem",
     );
   }
+  if (!Array.isArray(problem.groups)) {
+    throw new KnapsackValidationError("groups must be an array");
+  }
   if (problem.groups.length === 0) {
     throw new KnapsackValidationError("at least one group is required");
   }
   const groupIds = new Set<string>();
   let totalMaxProfit = 0;
+  let maxWeight = 0;
   for (const g of problem.groups) {
     if (typeof g.id !== "string" || g.id.length === 0) {
       throw new KnapsackValidationError("every group needs a non-empty string id");
@@ -53,11 +69,22 @@ export function validateProblem(problem: KnapsackProblem): void {
     let groupMaxProfit = 0;
     for (const o of g.options) groupMaxProfit = Math.max(groupMaxProfit, o.profit);
     totalMaxProfit += groupMaxProfit;
+    for (const o of g.options) maxWeight = Math.max(maxWeight, o.weight);
   }
   if (totalMaxProfit >= MAX_TOTAL_PROFIT) {
     throw new KnapsackValidationError(
       `sum of per-group max profits must stay below ${MAX_TOTAL_PROFIT} ` +
         `(got ${totalMaxProfit}); scale profits down or solve per subsystem`,
+    );
+  }
+  // Adaptive exactness envelope: every ordering product in hull/walk/fathom
+  // is (≤ totalMaxProfit) × (≤ maxWeight). Zero-profit problems are exempt
+  // (all products are zero or single-factor).
+  if (totalMaxProfit > 0 && totalMaxProfit * maxWeight >= MAX_EXACT_PRODUCT) {
+    throw new KnapsackValidationError(
+      `exactness envelope exceeded: (sum of max profits)·(largest weight) = ` +
+        `${totalMaxProfit}·${maxWeight} must stay below 2^53; ` +
+        "scale weights or profits down",
     );
   }
 }

@@ -126,4 +126,45 @@ describe("validation", () => {
       expect((e as Error).name).toBe("KnapsackValidationError");
     }
   });
+
+  test("rejects non-array groups", () => {
+    expect(() =>
+      validateProblem({ groups: undefined, capacity: 5 } as unknown as KnapsackProblem),
+    ).toThrow(KnapsackValidationError);
+  });
+
+  test("huge weights with small profits stay inside the envelope", () => {
+    expect(() =>
+      validateProblem(ok({
+        groups: [{ id: "g", options: [{ id: "a", weight: 2 ** 40, profit: 8 }] }],
+        capacity: 100,
+      })),
+    ).not.toThrow();
+  });
+
+  test("rejects when (Σ max profits)·(max weight) reaches 2^53", () => {
+    // totalMaxProfit = 1 + 1 = 2, maxWeight = 2^52  ->  product exactly 2^53.
+    expect(() =>
+      validateProblem({
+        groups: [
+          { id: "g1", options: [{ id: "a", weight: 1, profit: 1 }] },
+          { id: "g2", options: [{ id: "a", weight: 2 ** 52, profit: 1 }] },
+        ],
+        capacity: 10,
+      }),
+    ).toThrow(/exactness envelope exceeded/);
+  });
+
+  test("accepts just below the exactness envelope boundary", () => {
+    // totalMaxProfit = 2, maxWeight = 2^52 − 1  ->  product 2^53 − 2 < 2^53.
+    expect(() =>
+      validateProblem({
+        groups: [
+          { id: "g1", options: [{ id: "a", weight: 1, profit: 1 }] },
+          { id: "g2", options: [{ id: "a", weight: 2 ** 52 - 1, profit: 1 }] },
+        ],
+        capacity: 10,
+      }),
+    ).not.toThrow();
+  });
 });
