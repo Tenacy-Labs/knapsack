@@ -134,11 +134,18 @@ it. Tests prove correctness; they do not watch performance.
 *Objective: the library replaces agent-kernel's hand-rolled solver.
 Success signal: agent-kernel solves through this package in production.*
 
-- **I1. agent-kernel `solver.ts` swap** — the old solver carries O(n²)
-  `find`, an `indexOf` comparator, and `localeCompare` (nondeterminism
-  hazards documented in the survey). Swapping to this library is the
-  single largest consumer-side win. Held: survey PR on agent-kernel
-  (feature/knapsack-survey) awaits Daniel's TUI/REPL merge ruling.
+- **I1. agent-kernel `solver.ts` swap — Stage 1+2 shipped (PR #7, 2026-08-22).**
+  Stage 1: the survey II.4 hazards (O(n²) find, `indexOf` comparator,
+  `localeCompare` nondeterminism) fixed in agent-kernel directly —
+  byte-stable. Stage 2: budget relief now solves through this library
+  (`reliefMode: "exact-mckp"`, flag-gated; density remains the ruled
+  default per ADR-0005 v1.1). Exact dominance proven by test: ≥ density
+  everywhere, strictly better on greedy-suboptimal instances. Consumed
+  as vendored pin v0.1.1 (`file:vendor/knapsack`) — private-repo
+  dependency cannot resolve via bun github forms (404 on the
+  credential-less tarball API) nor repo-scoped CI tokens. Remaining:
+  flip the default once A/B evidence on real corpora justifies it;
+  then F2 (incremental re-solve) builds on the same checkpoint API.
 - **I2. v0.2 replay-corpus format** — deterministic re-render under
   chosen parameters (ADR-0003's replay harness) needs a stable,
   versioned corpus format; the exchange format (i32 stream) is the
