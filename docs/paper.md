@@ -446,8 +446,10 @@ solve = validate → pareto → hull → LP → [cert? return] → fathom → DP
   C). Space: two value rows `O(C)` plus the flat back-pointer array
   `O(n·C)` — stored one byte per cell (`Uint8Array` option indices; see
   ceiling 4 in §3.3), which quarters the naive `Int32Array` footprint.
-  Further reduction (re-solve-on-residual, dropping back-pointers for
-  `O(C)` total) remains future work.
+  Above the memory budget the solver dispatches to the divide-and-
+ conquer traceback (§5.6), which holds `O(C)` rows only; the full
+ ledger of remaining optimizations lives in
+ [`future-work.md`](future-work.md).
 
 **Tightness of the DP bound.** The `O(C·n·k̄)` term is tight, not loose.
 It is achieved when windows saturate capacity early: give every group two
@@ -671,14 +673,18 @@ the greedy incumbent never reach the DP at all.
 
 ## 8. Limitations and future work
 
-- **Back-pointer memory.** `O(C·n)` Int32 for traceback is the DP's
-  dominant memory cost. OR-Tools' re-solve-on-residual (recover choices by
-  re-solving the residual problem without the final group) would reclaim it
-  at one extra solve; v0.2 target.
+The full optimization ledger — build-when triggers, opportunistic items,
+and declined alternatives with revisit conditions — lives in
+[`future-work.md`](future-work.md). In brief:
+
+- **Back-pointer memory** — solved by budget dispatch (`v0.1.1`): below
+  the 50 MiB line, u8 back-pointers; above it, the O(C) D&C traceback.
+  Remaining lever: incremental re-solve on appended groups (F2), which
+  targets the consumer's per-turn pattern.
 - **Uniform fathoming.** λ_max is a deliberately loose uniform bound.
   Pisinger's expanding-core machinery (per-position bounds from the LP
-  partition) would tighten fathoming at large sizes; deferred until a
-  consumer needs it.
+  partition) would tighten fathoming at large sizes; F1 in the ledger,
+  deferred until a consumer needs it.
 - **No warm-starting.** Re-solving a perturbed instance (one weight
   changed) pays full price. The survey's honest negative: no fetched source
   describes true MCKP warm-starting; the all-capacity value function is the

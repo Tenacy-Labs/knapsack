@@ -93,6 +93,10 @@ under `16·(C+1) + ε` bytes no matter how many groups the caller brings.
 Determinism: no locale collation, no float ordering, no unordered iteration
 in any decision path. Same input, byte-identical output, every run.
 
+Future work is tracked in [`docs/future-work.md`](docs/future-work.md) —
+each item carries a build-when trigger, an estimate, or a revisit
+condition; declined alternatives keep their reasoning.
+
 ## Performance
 
 Measured on this machine (Mac Studio, Bun 1.3), median per-solve:
