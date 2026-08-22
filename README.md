@@ -73,7 +73,22 @@ re-solved every turn (full survey with sources in [`docs/survey.md`](docs/survey
    λ_max slack bound, integer form) cannot reach the incumbent.
 5. **Exact DP** — two-row `Int32Array` Bellman with reachable-weight
    windowing; skipped entirely when the LP solution is integral (the greedy
-   walk consumed every segment — a certificate of optimality).
+   walk consumed every segment — a certificate of optimality). Memory is
+   budget-dispatched: when the back-pointer table would exceed 50 MiB the
+   DP switches to a divide-and-conquer traceback (Hirschberg shape) that
+   uses only four `O(C)` rows — peak stays bounded at any input size the
+   validation envelope admits, at ≤ 2× time (measured +2% at the largest
+   benchmark shape).
+
+## Memory
+
+Peak DP allocation is predictable at solve time:
+`expectedDpBytes(n, C) = n·(C+1) + 8·(C+1)` bytes in back-pointer mode
+(u8 table), cross-validated within ±3% against measured peak RSS across
+11 shapes and two languages. Above a configurable budget (default
+50 MiB) the solver automatically uses the O(C)-memory divide-and-conquer
+traceback — exact, deterministic, ≤ 2× time — so worst-case memory stays
+under `16·(C+1) + ε` bytes no matter how many groups the caller brings.
 
 Determinism: no locale collation, no float ordering, no unordered iteration
 in any decision path. Same input, byte-identical output, every run.

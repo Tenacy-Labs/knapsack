@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { solve, KnapsackProblem } from "../src/index.ts";
-import { solveDp } from "../src/dp.ts";
+import { solveDp, expectedDpBytes, DEFAULT_DP_BUDGET } from "../src/dp.ts";
 
 /** Deterministic PRNG (mulberry32) so failures reproduce exactly. */
 function rng(seed: number): () => number {
@@ -188,6 +188,101 @@ describe("solve — u8 back-pointer boundary", () => {
     }
     expect(w).toBe(res.weight);
     expect(w).toBeLessThanOrEqual(60);
+  });
+});
+
+describe("solve — divide-and-conquer mode (forced via budget 0)", () => {
+  // The D&C path is normally entered only on huge shapes; budget 0 forces
+  // it for EVERY problem, so the exhaustive oracle below exercises it the
+  // way the randomized battery exercises the back-pointer path.
+  for (let seed = 1; seed <= 300; seed++) {
+    test(`seed ${seed}`, () => {
+      const r = rng(seed);
+      const nGroups = 2 + Math.floor(r() * 4); // 2..5 groups
+      const groups = Array.from({ length: nGroups }, (_, gi) => ({
+        id: `g${gi}`,
+        originalCount: 1 + Math.floor(r() * 5),
+        options: Array.from(
+          { length: 1 + Math.floor(r() * 5) }, // 1..5 options
+          (_, oi) => ({
+            id: `o${oi}`,
+            weight: Math.floor(r() * 30), // 0..29
+            profit: Math.floor(r() * 100), // 0..99
+          }),
+        ),
+      }));
+      const minW = groups.reduce(
+        (s, g) => s + Math.min(...g.options.map((o) => o.weight)),
+        0,
+      );
+      const maxW = groups.reduce(
+        (s, g) => s + Math.max(...g.options.map((o) => o.weight)),
+        0,
+      );
+      const capacity = minW + Math.floor(r() * (maxW - minW + 10));
+
+      const res = solveDp(groups as any, capacity, 0);
+      const expected = bruteForce({ groups, capacity } as KnapsackProblem);
+      if (!expected.feasible || expected.best === -Infinity) {
+        expect(res.value).toBe(-1);
+        return;
+      }
+      expect(res.value).toBe(expected.best);
+      // Choices must be valid and their weight sum must match res.weight.
+      expect(res.weight).toBeLessThanOrEqual(capacity);
+      let w = 0;
+      for (let i = 0; i < groups.length; i++) {
+        const idx = res.choiceIndex[i]!;
+        expect(idx).toBeGreaterThanOrEqual(0);
+        w += groups[i]!.options[idx]!.weight;
+      }
+      expect(w).toBe(res.weight);
+    });
+  }
+});
+
+describe("solve — budget switch consistency", () => {
+  test("D&C and back-pointer modes agree on identical inputs", () => {
+    const r = rng(777);
+    for (let t = 0; t < 50; t++) {
+      const nGroups = 3 + Math.floor(r() * 5);
+      const groups = Array.from({ length: nGroups }, (_, gi) => ({
+        id: `g${gi}`,
+        originalCount: 4,
+        options: Array.from({ length: 2 + Math.floor(r() * 5) }, (_, oi) => ({
+          id: `o${oi}`,
+          weight: Math.floor(r() * 50),
+          profit: Math.floor(r() * 200),
+        })),
+      }));
+      const minW = groups.reduce(
+        (s, g) => s + Math.min(...g.options.map((o) => o.weight)),
+        0,
+      );
+      const capacity = minW + Math.floor(r() * 300);
+      const a = solveDp(groups as any, capacity, 0); // forced D&C
+      const b = solveDp(groups as any, capacity, Infinity); // forced back-pointer
+      expect(a.value).toBe(b.value);
+      expect(a.weight).toBe(b.weight);
+      // Both must achieve the same optimum value; chosen options may differ
+      // among co-optimal ties, but the WEIGHT SUMS must match exactly.
+      let wa = 0;
+      let wb = 0;
+      for (let i = 0; i < groups.length; i++) {
+        wa += groups[i]!.options[a.choiceIndex[i]!]!.weight;
+        wb += groups[i]!.options[b.choiceIndex[i]!]!.weight;
+      }
+      expect(wa).toBe(wb);
+    }
+  });
+
+  test("expectedDpBytes matches the documented formula and flips at 50MiB", () => {
+    // n·(C+1) + 8·(C+1)
+    expect(expectedDpBytes(120, 47316)).toBe(120 * 47317 + 8 * 47317);
+    // A3 (n=480, C≈371k): 480·371k ≈ 178MB > 50MiB → D&C
+    expect(expectedDpBytes(480, 371000) > DEFAULT_DP_BUDGET).toBe(true);
+    // Stress shape (n=120, C≈48k): 5.8MB < 50MiB → back-pointer
+    expect(expectedDpBytes(120, 48000) < DEFAULT_DP_BUDGET).toBe(true);
   });
 });
 

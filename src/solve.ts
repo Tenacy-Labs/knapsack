@@ -9,7 +9,17 @@ import { validateProblem } from "./validate.ts";
 import { reduceAll, convexHull } from "./dominance.ts";
 import { solveLp, greedyWalk } from "./lp.ts";
 import { fathomOptions } from "./fathom.ts";
-import { solveDp } from "./dp.ts";
+import { solveDp, DEFAULT_DP_BUDGET } from "./dp.ts";
+
+/** Options for advanced callers. All optional. */
+export interface SolveOptions {
+  /**
+   * Back-pointer table budget in bytes (default 50 MiB). When
+   * expectedDpBytes(n, C) exceeds it, the exact DP runs in O(C)-memory
+   * divide-and-conquer mode instead (≤ 2× time, same results).
+   */
+  readonly maxDpBytes?: number;
+}
 
 /**
  * Solve an MCKP exactly.
@@ -24,14 +34,18 @@ import { solveDp } from "./dp.ts";
  *   4. fathom            — on convex hulls; drop options whose λ_max bound
  *                          cannot reach the incumbent
  *   5. exact DP          — on Pareto sets (fathomed options removed), two-row
- *                          Int32Array windowed Bellman
+ *                          Int32Array windowed Bellman (budget-dispatched
+ *                          back-pointer or divide-and-conquer mode)
  *   6. report            — value, choices, bounds, stats
  *
  * Determinism: no locale collation, no float ordering, no unordered-map
  * iteration in any decision path. The only float produced anywhere is the
  * reported lpUpper — never used for decisions.
  */
-export function solve(problem: KnapsackProblem): KnapsackResult {
+export function solve(
+  problem: KnapsackProblem,
+  options: SolveOptions = {},
+): KnapsackResult {
   validateProblem(problem);
 
   // 2. Pareto reduction (exact — no optimal solution uses a dominated option).
@@ -115,7 +129,7 @@ export function solve(problem: KnapsackProblem): KnapsackResult {
   const optionsAfterFathoming = dpGroups.reduce((s, g) => s + g.options.length, 0);
 
   // 5. Exact DP.
-  const dp = solveDp(dpGroups, problem.capacity);
+  const dp = solveDp(dpGroups, problem.capacity, options.maxDpBytes ?? DEFAULT_DP_BUDGET);
   const choices = extractChoices(dpGroups, dp.choiceIndex);
 
   return {

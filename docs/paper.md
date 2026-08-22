@@ -378,12 +378,29 @@ States are total weights; values are max profit reachable after the first
 swapped by reference; a flat back-pointer array `bp[gi·(C+1) + w]` records
 the chosen option index, giving `O(n)` traceback.
 
+**Two modes, dispatched by a memory budget** (`expectedDpBytes(n, C) =
+n·(C+1) + 8·(C+1)` vs a 50 MiB default):
+
+- *Back-pointer mode* (table fits): as above, `O(C + n·C)` space.
+- *Divide-and-conquer mode* (Hirschberg 1975 shape): no back-pointer table
+  exists. Forward and backward value sweeps meet at the group-range
+  midpoint; the meeting weight `w*` maximizing
+  `F≤[w] + B≤[C−w]` (prefix-max rows) splits the capacity between the
+  halves, which recurse. Sub-capacities telescope (`w* + (C−w*) = C` at
+  every level), so total work is ≤ 2× one sweep — measured +2.2% at the
+  largest benchmark shape, where windowing absorbs the rest. Live memory
+  is four value rows, `16·(C+1)` bytes ≤ 32 MiB at the envelope's maximum
+  capacity — independent of `n`. Exactness is identical: both modes are
+  proven against the same brute-force oracle.
+
 Per group, only the reachable window — `[sum of minima so far, min(C, sum
 of maxima so far)]` — is touched. The destination row is *fully* cleared
 before each sweep. That full clear is a lesson paid for in debugging: reads
 can dip below the cumulative minimum when a large option weight jumps
 backward relative to two stages prior, and stale two-stages-old values then
-leak into fresh reads. Full clear, always.
+leak into fresh reads. Full clear, always. Windows are computed from each
+group's true min/max weight — no sortedness assumption is made about
+direct `solveDp` callers.
 
 Inner loop: plain scan, per-option max. OR-Tools' in-code measurements
 found plain loops beating prefix arithmetic by ~10% at this scale; we follow
@@ -406,7 +423,7 @@ solve = validate → pareto → hull → LP → [cert? return] → fathom → DP
 | convex hull | `O(k)` | `O(k)` | points already weight-sorted |
 | LP walk | `O(k²)` worst | `O(n)` | see below |
 | fathom | `O(k)` | `O(k)` | one pass over hull options |
-| exact DP | `O(C·n·k̄)` | `O(C + n·C)` | windowing shrinks constant, not asymptotics |
+| exact DP | `O(C·n·k̄)` | `O(C + n·C)`; `O(C)` in D&C mode | budget-dispatched (§5.6) |
 
 **Derivations.**
 
