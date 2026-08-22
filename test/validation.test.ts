@@ -58,6 +58,28 @@ describe("validation", () => {
     ).toThrow(/at least one option/);
   });
 
+  test("accepts exactly 255 options per group (u8 back-pointer cap)", () => {
+    const options = Array.from({ length: 255 }, (_, i) => ({
+      id: `o${i}`,
+      weight: i + 1,
+      profit: i * 3 + 1,
+    }));
+    expect(() =>
+      validateProblem(ok({ groups: [{ id: "g", options }], capacity: 500 })),
+    ).not.toThrow();
+  });
+
+  test("rejects 256 options per group, naming group and limit", () => {
+    const options = Array.from({ length: 256 }, (_, i) => ({
+      id: `o${i}`,
+      weight: i + 1,
+      profit: i * 3 + 1,
+    }));
+    expect(() =>
+      validateProblem(ok({ groups: [{ id: "wide-group", options }] })),
+    ).toThrow(/wide-group.*256 options.*at most 255/);
+  });
+
   test("rejects fractional weights", () => {
     expect(() =>
       validateProblem(

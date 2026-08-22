@@ -52,8 +52,9 @@ result.stats;         // reduction counts, dpRequired, dpCellsVisited
 `KnapsackValidationError` otherwise). "Choose nothing" semantics are modeled
 explicitly with a zero-weight zero-profit option — agent-kernel's purge.
 Capacity is a non-negative integer below 2²¹, and the problem must satisfy
-the exactness envelope (Σ per-group max profits)·(largest weight) < 2⁵³
-(validated; throws `KnapsackValidationError` otherwise). Option ids must be
+the exactness envelope (Σ per-group max profits)·(largest weight) < 2⁵³,
+and each group may carry at most 255 options (all validated; throws
+`KnapsackValidationError` otherwise). Option ids must be
 unique within a group; group ids globally unique.
 
 ## Pipeline

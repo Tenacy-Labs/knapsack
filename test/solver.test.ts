@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { solve, KnapsackProblem } from "../src/index.ts";
+import { solveDp } from "../src/dp.ts";
 
 /** Deterministic PRNG (mulberry32) so failures reproduce exactly. */
 function rng(seed: number): () => number {
@@ -121,6 +122,72 @@ describe("solve — determinism", () => {
     const a = solve(problem);
     const b = solve(problem);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});
+
+describe("solve — u8 back-pointer boundary", () => {
+  // One group at the full 255-option cap plus a small partner. Exercises
+  // option indices up to 254 — adjacent to the 255 unreachable sentinel —
+  // through the whole pipeline, against the exhaustive oracle.
+  test("255-option group solves correctly at the boundary", () => {
+    const wide = Array.from({ length: 255 }, (_, i) => ({
+      id: `w${i}`,
+      weight: (i * 7) % 97 + 1,
+      profit: (i * 13) % 89 + 1,
+    }));
+    const problem: KnapsackProblem = {
+      groups: [
+        { id: "wide", options: wide },
+        {
+          id: "small",
+          options: [
+            { id: "s0", weight: 2, profit: 3 },
+            { id: "s1", weight: 5, profit: 9 },
+          ],
+        },
+      ],
+      capacity: 60,
+    };
+    const expected = bruteForce(problem);
+    const result = solve(problem);
+    checkChoicesValid(problem, result);
+    expect(result.value).toBe(expected.best);
+  });
+
+  // The optimum at capacity 60 lands on the option with INDEX 254 (weight
+  // 55, profit 500): verify it round-trips through the u8 back-pointers
+  // without sentinel aliasing — direct solveDp call, so the DP path is
+  // exercised regardless of certificate behavior.
+  test("option index 254 is recoverable from the u8 traceback", () => {
+    const wide = Array.from({ length: 255 }, (_, i) => ({
+      id: `w${i}`,
+      weight: i === 254 ? 55 : i + 1, // make the LAST option the winner
+      profit: i === 254 ? 500 : 1,
+    }));
+    const partner = {
+      id: "p",
+      options: [
+        { id: "p0", weight: 0, profit: 0 },
+        { id: "p1", weight: 7, profit: 15 },
+      ],
+      originalCount: 2,
+    };
+    const reduced = [
+      { id: "wide", options: wide, originalCount: 255 },
+      partner,
+    ];
+    const res = solveDp(reduced, 60);
+    // Brute oracle over 255 x 2 combos: best is w254 (55,500) + p0 (0,0).
+    expect(res.value).toBe(500);
+    expect(res.choiceIndex[0]).toBe(254);
+    expect(res.choiceIndex[1]).toBe(0);
+    // Traceback consistency: weights sum to the reported final weight.
+    let w = 0;
+    for (let gi = 0; gi < reduced.length; gi++) {
+      w += reduced[gi]!.options[res.choiceIndex[gi]!]!.weight;
+    }
+    expect(w).toBe(res.weight);
+    expect(w).toBeLessThanOrEqual(60);
   });
 });
 

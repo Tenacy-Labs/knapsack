@@ -10,7 +10,7 @@ import { ReducedGroup } from "./types.ts";
  * are touched; the destination range is cleared to -1 just before the sweep,
  * so no stale values survive a row swap. A flat back-pointer array
  * (bp[gi * width + w] = option index chosen by group gi to arrive at weight
- * w, -1 = unreachable) gives O(groups) traceback.
+ * w, 255 = unreachable) gives O(groups) traceback.
  *
  * The inner loop is a plain scan — or-tools' own measurements favor plain
  * loops over clever arithmetic at this scale. All values are integers.
@@ -32,9 +32,12 @@ export function solveDp(
   const width = capacity + 1;
   let prev = new Int32Array(width).fill(-1); // -1 = unreachable
   let cur = new Int32Array(width).fill(-1);
-  // Int32 back-pointers keep one uniform type; memory = 4 * n * (capacity+1)
-  // bytes. (v0.2 may shrink this or adopt or-tools' re-solve-on-residual.)
-  const bp = new Int32Array(n * width).fill(-1);
+  // Back-pointers store OPTION INDICES (0..254; 255 = unreachable sentinel)
+  // in a Uint8Array — 1 byte per cell instead of 4. Valid because validation
+  // caps each group at 255 options (MAX_OPTIONS_PER_GROUP, validate.ts), and
+  // this invariant survives reduction: hulls only ever shrink option counts.
+  // Memory = n·(C+1) + 2·(C+1)·4 bytes, a 4× cut vs the old Int32 table.
+  const bp = new Uint8Array(n * width).fill(255);
 
   let cells = 0;
 

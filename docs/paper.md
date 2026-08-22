@@ -175,9 +175,9 @@ message — never a silently wrong answer.
 
 ### 3.3 The arithmetic envelope
 
-Three ceilings exist because the solver's exactness is bounded by machine
-integer arithmetic, and the library prefers failing loudly to being silently
-wrong:
+Four ceilings exist because the solver's exactness is bounded by machine
+integer arithmetic and fixed-width representation, and the library prefers
+failing loudly to being silently wrong:
 
 1. **Σ per-group max profits < 2³¹** (`MAX_TOTAL_PROFIT`): DP value rows are
    `Int32Array`; a profit sum at or beyond 2³¹ would wrap.
@@ -193,6 +193,13 @@ wrong:
    adaptive rather than a flat weight cap: small-profit problems admit
    huge weights. Below all three ceilings, every integer the solver
    computes is exact.
+4. **≤ 255 options per group** (`MAX_OPTIONS_PER_GROUP`): the DP's
+   back-pointer table stores option indices one byte each
+   (`Uint8Array`, 255 = unreachable sentinel) — the 4× memory cut over an
+   `Int32Array` table that keeps the worst-case DP's footprint at
+   `n·(C+1) + 8·(C+1)` bytes. Reduction only shrinks groups (hulls are
+   sub-frontiers of their inputs), so the cap is enforced on the caller's
+   original arrays, before reduction.
 
 The only floating-point value produced anywhere is the reported `lpUpper`
 bound, which is never used for a decision.
@@ -420,7 +427,10 @@ solve = validate → pareto → hull → LP → [cert? return] → fathom → DP
   `≤ kᵢ` option reads. Total: `O(C · Σ kᵢ)` = `O(C·n·k̄)` time worst case
   (window spans the full capacity range when weights are small relative to
   C). Space: two value rows `O(C)` plus the flat back-pointer array
-  `O(n·C)` — the memory term to reclaim in v0.2 via re-solve-on-residual.
+  `O(n·C)` — stored one byte per cell (`Uint8Array` option indices; see
+  ceiling 4 in §3.3), which quarters the naive `Int32Array` footprint.
+  Further reduction (re-solve-on-residual, dropping back-pointers for
+  `O(C)` total) remains future work.
 
 **Tightness of the DP bound.** The `O(C·n·k̄)` term is tight, not loose.
 It is achieved when windows saturate capacity early: give every group two
@@ -450,7 +460,8 @@ single-digit-milliseconds; the certificate path stays microseconds.
 
 ### 5.8 Input scale limits from complexity
 
-The envelope (§3.3) caps `C < 2²¹` and `Σ max-profit < 2³¹`; complexity caps
+The envelope (§3.3) caps `C < 2²¹`, `Σ max-profit < 2³¹`, and options per
+group at 255; complexity caps
 practical scale: `C·n·k̄` cell-visits at `µs-per-10⁵-cells` speed means
 `C = 10⁶` token budgets demand windowing (§5.6) and fathoming to stay
 interactive — and above roughly `C·n·k̄ ≈ 10⁸` an FPTAS or core-based

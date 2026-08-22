@@ -19,6 +19,15 @@ export const MAX_TOTAL_PROFIT = 0x7fffffff;
 export const MAX_CAPACITY = 0x1fffff; // 2^21 − 1
 
 /**
+ * Max options per group. The DP stores option indices as bytes
+ * (Uint8Array back-pointers, 255 = unreachable sentinel), so a group may
+ * carry at most 255 options. Hulls are strict non-dominated frontiers —
+ * far smaller in practice — but the guarantee is enforced where it is
+ * decidable: on the caller's original option array, before reduction.
+ */
+export const MAX_OPTIONS_PER_GROUP = 255;
+
+/**
  * Every ordering product in the pipeline (hull cross-products, walk argmax
  * compares, fathom bounds) is (profit magnitude ≤ Σ per-group max profits)
  * × (weight magnitude ≤ largest weight). Staying below 2^53 keeps each
@@ -93,6 +102,13 @@ function validateGroupOptions(g: KnapsackGroup): void {
   if (!Array.isArray(g.options) || g.options.length === 0) {
     throw new KnapsackValidationError(
       `group ${JSON.stringify(g.id)} needs at least one option`,
+    );
+  }
+  if (g.options.length > MAX_OPTIONS_PER_GROUP) {
+    throw new KnapsackValidationError(
+      `group ${JSON.stringify(g.id)} has ${g.options.length} options; ` +
+        `at most ${MAX_OPTIONS_PER_GROUP} are supported (the exact DP stores ` +
+        "option indices as bytes)",
     );
   }
   const ids = new Set<string>();
