@@ -167,6 +167,16 @@ Success signal: agent-kernel solves through this package in production.*
   chosen parameters (ADR-0003's replay harness) needs a stable,
   versioned corpus format; the exchange format (i32 stream) is the
   natural seed. Corpus files need a `.gitattributes` binary marker.
+- **I3. Frontier exposure (ADR-0001)** — `result.frontier`: the DP's
+  final value row as certified Pareto kinks (low-w coverage down to
+  purge; full-row escape-hatch flag for non-monotone consumer
+  utilities). Result-surface change only; the row is already computed
+  and discarded. Consumer runs the rot scan U(w) = ρ(w)·P\*(w) + H(C−w)
+  and re-solves at the chosen w\* for the layout.
+  - Trigger: agent-kernel's ADR-0001 rot scan goes live (build together;
+    the consumer defines the shape).
+  - Cost: kink extraction + surface + tests; oracle battery re-run.
+    Est. 0.5 day.
 
 ## Goal 5 — Research extensions
 
@@ -179,7 +189,24 @@ signal: every extension has a consumer that asked for it.*
   (fold into F2's checkpoint API) turns the survey's honest negative —
   no fetched source describes true MCKP warm-starting — into the
   nearest practical substrate. Scope guard: data export only; no
-  scheduling or policy logic in the library.
+  scheduling or policy logic in the library. First consumer: ADR-0001's
+  frontier contract (kinks by default; full row = R1's escape hatch).
+- **R2. Cache-prefix-augmented DP (ADR-0001 §7.3)** — *build-when:
+  ledger divergence shows the per-option cache approximation misprices
+  evictions.* One extra DP state bit (prefix diverged?) charges
+  diverged-suffix weights at re-prefill price; certificate stays exact.
+  Exposed frontier becomes cache-adjusted P̃\*(w). Est. 1–2 days with
+  review (state-doubling through dominance, fathom, and D&C traceback).
+- **R3. Per-zone frontiers for positional rot (ADR-0001 §9)** —
+  *build-when: positional rot observability exists in the ledger.*
+  Lost-in-the-middle breaks the one-dimensional scan; needs a frontier
+  over zone-vectors — a different object, not a parameter of this one.
+- **R4. Cross-turn DP (ADR-0001 §9, named rejected-general frame)** —
+  state = content inventory, decisions = renders/transforms,
+  transitions = turn growth. Transition dynamics unestimable today;
+  hysteresis, transaction costs, and turnover caps are its pragmatic
+  stand-ins. Single-turn frontier + consumer ρ/H is the composable
+  myopic approximation. Not a build-when; a do-not-pretend.
 - Multi-period, MILP, and float decisions stay on the do-not-do list.
   The library is deliberately narrow; that is a feature, not a gap.
 
@@ -196,6 +223,10 @@ Hard "no" pending a contract change from the owner:
 
 ## Changelog
 
+- 2026-08-23: ADR-0001 accepted (context rot as consumer-side disutility
+  over the solver frontier); ledger gains I3 (frontier exposure) and
+  R2–R4 (cache-prefix DP, per-zone frontiers, cross-turn DP as the
+  named rejected-general frame).
 - 2026-08-22 (post-`v0.1.1`): restructured into five goal tracks —
   performance, product readiness, confidence, consumer integration,
   research — at the owner's direction. Performance items (F/D) carried
