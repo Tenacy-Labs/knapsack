@@ -16,7 +16,8 @@ export interface SolveOptions {
   /**
    * Back-pointer table budget in bytes (default 50 MiB). When
    * expectedDpBytes(n, C) exceeds it, the exact DP runs in O(C)-memory
-   * divide-and-conquer mode instead (≤ 2× time, same results).
+   * divide-and-conquer mode instead (≤ 2× time, same optimal value;
+   * tie-broken selections may differ between modes).
    */
   readonly maxDpBytes?: number;
 }

@@ -127,8 +127,14 @@ export function greedyWalk(
     } else {
       if (!breakSeen) {
         // First non-fitting segment in density order: the LP break.
+        // Integer-product quotient: rem < 2^21 and dp < 2^31 (envelope),
+        // so rem*dp < 2^52 is exactly representable and the division is
+        // exact whenever the true bound is integral. The naive
+        // (rem/dw)*dp rounded 1 ulp low on density ties and reported
+        // lpUpper < value (fresh-context review, 2026-08-23).
         const rem = capacity - weight;
-        upperBound = profit + (rem / dw) * (to.profit - from.profit);
+        const dp = to.profit - from.profit;
+        upperBound = profit + (rem * dp) / dw;
         breakGroupId = g.id;
         breakOptionIndex = idx[bestG]!;
         breakGradient = { p: to.profit - from.profit, w: dw };

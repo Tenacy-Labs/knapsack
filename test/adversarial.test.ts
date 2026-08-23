@@ -206,6 +206,29 @@ describe("solve — infeasible result contract (regression)", () => {
   });
 });
 
+describe("solve — bounds bracket the optimum exactly", () => {
+  test("lpUpper never rounds below the returned optimal value (ulp tie)", () => {
+    // Fresh-context review finding (2026-08-23): on density ties the
+    // naive (rem/dw)*dp float rounds 1 ulp below the exact integral
+    // bound. Family: two segments of identical density 9; X is walked
+    // first (input order), breaks with rem=7, dw=10, dp=90 → exact
+    // bound 63, naive float 62.99999999999999.
+    const problem: KnapsackProblem = {
+      capacity: 7,
+      groups: [
+        { id: "X", options: [{ id: "x0", weight: 0, profit: 0 }, { id: "x1", weight: 10, profit: 90 }] },
+        { id: "Y", options: [{ id: "y0", weight: 0, profit: 0 }, { id: "y1", weight: 7, profit: 63 }] },
+      ],
+    };
+    const r = solve(problem);
+    expect(r.value).toBe(63);
+    expect(r.bounds.lpUpper).toBe(63);          // was 62.99999999999999
+    expect(r.bounds.greedyLower).toBe(63);
+    // The exported contract: greedyLower ≤ value ≤ lpUpper, exactly.
+    expect(r.bounds.lpUpper).toBeGreaterThanOrEqual(r.value);
+  });
+});
+
 describe("solve — maxDpBytes through the public entry", () => {
   test("tight budget dispatches D&C and returns identical results", () => {
     // DP-requiring instance (verified: LP gap non-zero forces the DP stage).
