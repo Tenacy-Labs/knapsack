@@ -74,12 +74,49 @@ describe("solveRot (ADR-0001 convenience layer)", () => {
     expect(r.value).toBe(103);
   });
 
-  test("invalid rot params throw", () => {
-    const ok = { kneeRetention: 0.95, floorRetention: 0.5 } as const;
-    expect(() => solveRot(readme, { rot: { kneeFraction: 0, ...ok } })).toThrow();
-    expect(() => solveRot(readme, { rot: { kneeFraction: 1, ...ok } })).toThrow();
-    expect(() => solveRot(readme, { rot: { kneeFraction: 0.4, kneeRetention: 0.5, floorRetention: 0.9 } })).toThrow();
-    expect(() => solveRot(readme, { rot: { kneeFraction: 0.4, kneeRetention: 1.2, floorRetention: 0.5 } })).toThrow();
-    expect(() => solveRot(readme, { rot: { kneeFraction: 0.4, kneeRetention: 0.95, floorRetention: 0 } })).toThrow();
+  test("capacity 0 is in-contract: finite scan output", () => {
+    // M1: capacity 0 → knee=0 → 0/0=NaN → rotAdjustedValue -Infinity.
+    const a = solveRot({ groups: [{ id: "g", options: [{ id: "purge", weight: 0, profit: 0 }] }], capacity: 0 });
+    expect(a.status).toBe("optimal");
+    expect(a.rotAdjustedValue).toBe(0);
+    const b = solveRot({ groups: [{ id: "g", options: [{ id: "free", weight: 0, profit: 42 }] }], capacity: 0 });
+    expect(b.value).toBe(42);
+    expect(b.rotAdjustedValue).toBe(42);
+  });
+
+  test("no-purge zero-profit: feasible stays feasible at the min-weight floor", () => {
+    // M2A: default params, zero caller config. solve() finds a layout;
+    // solveRot() must not call a feasible problem infeasible.
+    const r = solveRot({ groups: [{ id: "g", options: [{ id: "heavy", weight: 5000, profit: 0 }] }], capacity: 8000 });
+    expect(r.status).toBe("optimal");
+    expect(r.choices).toEqual([{ groupId: "g", optionId: "heavy" }]);
+    expect(r.operatingWeight).toBe(5000);
+    expect(r.rotAdjustedValue).toBe(0);
+  });
+
+  test("no-purge + headroom: scan maximizes over attainable points only", () => {
+    // M2B: H=0.9/token prices fictional w=0 (U=720) over w=200; w=0 is
+    // unattainable — no group has a zero-weight option. w*=200 wins.
+    const r = solveRot({
+      groups: [
+        { id: "a", options: [{ id: "x", weight: 100, profit: 50 }] },
+        { id: "b", options: [{ id: "y", weight: 100, profit: 50 }] },
+      ],
+      capacity: 800,
+    }, { headroom: (f) => 0.9 * f });
+    expect(r.status).toBe("optimal");
+    expect(r.operatingWeight).toBe(200);
+    expect(r.value).toBe(100);
+  });
+
+  test("non-finite headroom values throw", () => {
+    expect(() => solveRot(readme, { headroom: () => NaN })).toThrow();
+    expect(() => solveRot(readme, { headroom: (f) => (f > 700 ? Infinity : 0.3 * f) })).toThrow();
+  });
+
+  test("returned rot is frozen; NaN rot params throw", () => {
+    const r = solveRot(readme);
+    expect(Object.isFrozen(r.rot)).toBe(true);
+    expect(() => solveRot(readme, { rot: { kneeFraction: NaN, kneeRetention: 0.95, floorRetention: 0.5 } })).toThrow();
   });
 });

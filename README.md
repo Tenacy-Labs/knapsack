@@ -106,6 +106,8 @@ solveRot(problem, { rot: { kneeFraction: 0.9, kneeRetention: 0.99, floorRetentio
 
 // Free-capacity utility: U(w) = ρ(w)·P*(w) + H(C−w)
 solveRot(problem, { headroom: (freedTokens) => 0.3 * freedTokens });
+// Non-finite H values throw KnapsackValidationError; rot params are
+// validated the same way. On U ties the scan picks the shortest layout.
 ```
 
 The core stays integer-pure and rot-blind; floats appear only in the

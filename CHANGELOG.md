@@ -14,11 +14,14 @@ semver. The v0.1.1 entry is seeded from its tag annotation.
   ρ(C)=0.50) when no rot is passed — zero-config start. Optional
   `headroom: (freedTokens) => number` prices unused capacity. Returns
   `operatingWeight`, `rotAdjustedValue` (float, scan objective),
-  `rot` (params used), plus the full certified result surface
-  (`value`/`choices`/`bounds`/`stats`/`frontier`) of the re-solve at
-  w\*. Core stays integer-pure and rot-blind (ADR framing A); floats
-  live only in the scan. New exports: `solveRot`, `DEFAULT_ROT`,
-  types `RotParams`/`RotSolveOptions`/`RotSolveResult`.
+  `rot` (frozen; params used), `value`/`choices`/`bounds`/`stats` of the
+  certified re-solve at w\*, plus the full-capacity `frontier` the scan
+  ran over. Scan maximizes over attainable points only (min feasible
+  weight floor); ties pick the shortest layout; non-finite `headroom`
+  values throw `KnapsackValidationError`. Core stays integer-pure and
+  rot-blind (ADR framing A); floats live only in the scan. New exports:
+  `solveRot`, `DEFAULT_ROT`, types `RotParams`/`RotSolveOptions`/
+  `RotSolveResult`; `maxDpBytes` passes through to both internal solves.
 - **`result.frontier` (ADR-0001, ledger I3)** — opt-in via
   `{ frontier: true }`: the certified Pareto frontier P\*(w) of the solve
   — kinks from an exact standalone value-row sweep over
