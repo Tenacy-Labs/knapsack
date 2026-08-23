@@ -139,6 +139,7 @@ function checkChoicesValid(p: KnapsackProblem, result: ReturnType<typeof solve>)
 }
 
 describe("solve — adversarial fuzz battery (600 seeds × 4 styles × 3 regimes)", () => {
+  let frontierMismatches = 0; // battery-level guard: frontier oracle drift
   let feasibleCount = 0;
   let dpCount = 0;
 
@@ -151,6 +152,32 @@ describe("solve — adversarial fuzz battery (600 seeds × 4 styles × 3 regimes
 
       // Replay determinism: identical problems serialize identically.
       expect(JSON.stringify(replay)).toBe(JSON.stringify(result));
+
+      // Frontier oracle (review M3): the exposed kinks must equal the exact
+      // kink set of brute-forced P*(w) for every w in [0, C] — sufficient
+      // statistic for the ADR-0001 consumer scan, load-bearing at the
+      // battery level, not just one friendly corpus.
+      const fr = solve(problem, { frontier: true });
+      expect(JSON.stringify(fr)).toBe(JSON.stringify(solve(problem, { frontier: true })));
+      const pstar = (w: number): number => {
+        let best = 0;
+        for (const p of fr.frontier!) if (p.weight <= w && p.value > best) best = p.value;
+        return best;
+      };
+      let exact = true;
+      for (let w = 0; w <= problem.capacity; w++) {
+        const bw = bruteForce({ ...problem, capacity: w });
+        // Feasible at w iff min-weight selection fits (validateProblem's
+        // domain guarantees a zero-weight option per group only when the
+        // generator emitted one; brute force decides honestly).
+        if (bw.feasible) {
+          if (bw.best !== pstar(w)) { exact = false; break; }
+        } else if (pstar(w) !== 0) {
+          exact = false; break;
+        }
+      }
+      if (!exact) frontierMismatches++;
+      expect(exact).toBe(true);
 
       if (!expected.feasible) {
         // Infeasible contract: choices null; bounds/stats stay populated.
@@ -181,6 +208,7 @@ describe("solve — adversarial fuzz battery (600 seeds × 4 styles × 3 regimes
     expect(feasibleCount).toBeGreaterThan(400);
     expect(600 - feasibleCount).toBeGreaterThan(50); // infeasible coverage
     expect(dpCount).toBeGreaterThan(100);
+    expect(frontierMismatches).toBe(0); // frontier oracle must never drift
   });
 });
 

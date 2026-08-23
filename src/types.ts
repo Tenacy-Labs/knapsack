@@ -64,11 +64,12 @@ export interface KnapsackResult {
   readonly stats: KnapsackStats;
   /**
    * ADR-0001: present iff options.frontier. Kinks of the Pareto frontier
-   * P*(w) = best achievable profit at total weight <= w, computed from the
-   * exact DP's value row over dominance-reduced groups. Ascending weight,
-   * strictly increasing value, first point always {0, 0} (the purge floor —
-   * genuine P*(0) when a zero-profit zero-weight selection exists, otherwise
-   * the empty-render convention), last point the classical optimum.
+   * P*(w) = best achievable profit at total weight <= w, from an exact
+   * standalone value-row sweep over dominance-reduced groups (equivalent
+   * to the DP's final value row on every path). Ascending weight,
+   * strictly increasing value, first point at weight 0 carrying P*(0) —
+   * 0 under the purge convention, the free-profit value when zero-weight
+   * positive-profit options exist — last point the classical optimum.
    * Infeasible: [{0, 0}].
    */
   readonly frontier?: readonly FrontierPoint[];

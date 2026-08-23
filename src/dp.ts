@@ -64,10 +64,14 @@ export function solveDp(
  * capacity-specific (an option dropped for the C-optimum may be the
  * w-optimum for w < C), so the frontier must never be derived from
  * fathomed sets. One O(C·k̄) sweep, O(C) memory, integers only, no
- * back-pointers. The {0, 0} lead point is the purge convention: genuine
- * P*(0) when a zero-profit zero-weight selection exists, else the
- * empty-render floor. Zero-weight positive-profit options at w=0 are not
- * kink-extracted (documented convention).
+ * back-pointers. The lead point carries P*(0): 0 under the purge
+ * convention, the sum of zero-weight positive-profit options when they
+ * exist (ADR-0001's U(w) scan needs the true floor). Inputs must
+ * satisfy validateProblem's domain (integer weights/profits,
+ * non-negative) — via solve() they always do; advanced callers calling
+ * this export directly own that invariant. Allocates two
+ * Int32Array(C+1) rows ≈ 8·(C+1) bytes regardless of maxDpBytes
+ * (bounded; small relative to DEFAULT_DP_BUDGET).
  */
 export function computeFrontier(
   reduced: readonly ReducedGroup[],
@@ -79,8 +83,13 @@ export function computeFrontier(
   const scratch = new Int32Array(width).fill(-1);
   sweepValueRow(reduced, capacity, row, scratch);
   // Kink extraction: strict value increases; smallest weight per value.
-  const kinks: FrontierPoint[] = [{ weight: 0, value: 0 }];
-  let best = 0;
+  // Lead point: row[0] is P*(0) when every group has a zero-weight option
+  // (free-profit shapes: ADR-0001's U(w) scan needs it), else -1 = the
+  // {0, 0} purge floor. Byte-identical to the purge convention when no
+  // free profit exists.
+  const lead = row[0]! > 0 ? row[0]! : 0;
+  const kinks: FrontierPoint[] = [{ weight: 0, value: lead }];
+  let best = lead;
   for (let w = 1; w <= capacity; w++) {
     const v = row[w]!;
     if (v > best) {
