@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 semver. The v0.1.1 entry is seeded from its tag annotation.
 
-## [Unreleased]
+## [0.2.0] — 2026-08-23
 
 ### Added
 - **`solveRot()` — one-call rot-aware solving (ADR-0001 §6)**: scans the
