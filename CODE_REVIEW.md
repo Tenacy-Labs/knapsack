@@ -187,3 +187,47 @@ wide-capacity row; three `solve —` describe names exercise `solveDp`
 directly; oracle `combo` array dead; integration golden pins internals
 (intentional change-detector); v0.1.1 tag predates these fixes — bump
 to 0.1.2 at P2 rather than retag.
+
+---
+
+# Code Review — core algorithm (2026-08-23)
+
+Fresh-context subagent (1990s runtime, 9 probe scripts): full read of
+all 7 src files, ~92k differential-fuzz instances vs brute force (both
+DP modes + permutations), 5k exhaustive 2-group instances, 400
+near-2^53 envelope instances. **0 critical / 2 major / 6 minor.**
+
+**MAJOR M1 — lpUpper 1-ulp bracket violation (FIXED, f89c15b).** The
+pipeline's only float, the Dantzig lpUpper, was computed
+`(rem/dw)*dp`; on density ties the division rounds down and the
+reported bound lands 1 ulp under the proven optimum
+(lpUpper 62.99999999999999 vs value 63 — deterministic family
+rem=7/dw=10/dp=90). No decision path consumes lpUpper, so values
+stayed exact everywhere; the reported certificate was the lie. Fix:
+integer-product quotient `(rem*dp)/dw` (envelope guarantees exact
+representation; division exact whenever the bound is integral).
+Regression test verified fail-under-revert.
+
+**MAJOR M2 — quadratic greedy walk, ≤3× per solve (LEDGERED as F0).**
+O(n²) measured cleanly (4.0-4.1× per doubling, ~1.7 s at n=16k).
+Invisible at design regime; build-when n≳500 real workload.
+
+Hypotheses NOT reproduced (all analytically refuted or exhausted
+against): fathom envelope exceeding 2^53 (envelope math forbids ties
+flipping), fathoming a provably-optimal option (min-weight option
+always survives), LP walk off-by-one, D&C reconstruction error,
+Int32 overflow in DP rows, NaN/subnormal into decisions, unordered
+iteration reaching decisions, `status:"optimal"` lying, empty/purge
+groups crashing.
+
+Minors (doc drift / dead code, tracked in future-work):
+m1 "same results" across DP modes → same VALUE, tie-broken selections
+   differ (~2% of tie instances) — SolveOptions doc FIXED in f89c15b.
+m2 dpRequired doc ("LP gap non-zero") vs actual trigger (fractional
+   hull break even with zero final gap).
+m3 -0 accepted by isNonNegInt (provably harmless downstream).
+m4 dead isFeasible() export; duplicate LpSolution.zValue field.
+m5 solveLp on infeasible reports 0/0 bounds (misleading sign).
+m6 cellsVisited mixes option-counts and cell-counts.
+
+Verdict (reviewer): ship for stated purpose with confidence after M1.

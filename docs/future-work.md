@@ -35,6 +35,17 @@ budget or latency targets.*
 
 ### Build-when
 
+**F0. Heap-based greedy walk + single-walk reuse.** The LP argmax rescan
+is O(S·n) ≈ O(n²·k) and runs up to 3× per solve (solveLp, fathomOptions,
+integral path) — measured 4.0–4.1× per n-doubling, ~1.7 s at n=16k
+(fresh-context review 2026-08-23). Invisible at the design regime (tens
+of groups, sub-100 µs); fix = Dyer–Zemel-style k-way segment merge (one
+O(S log n) walk) + reusing the walk's terminal state instead of
+re-walking. Not a correctness issue; no decision consumes it wrong.
+- Trigger: a real workload with n ≳ 500 groups.
+- Cost: heap merge rewrite of lp.ts walk + fathom reuse; needs the full
+  oracle battery re-run. Est. 1 day.
+
 **F1. Core DP (break-item partition; Pisinger's mcknap lineage).** The
 LP walk already computes the break gradient. Groups far below it take
 their minimum, groups far above take their maximum; only the *core* —
