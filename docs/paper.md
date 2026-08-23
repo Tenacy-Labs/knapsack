@@ -222,9 +222,11 @@ interface KnapsackResult {
 
 `status: "optimal"` is a proof claim, not a heuristic label — the LP
 certificate or the exact DP (§6) established optimality. On infeasibility
-(minimum-weight sum exceeds capacity), `choices`, `bounds`, and `stats` are
-`null`. When optimal, the bracket `greedyLower ≤ value ≤ lpUpper` always
-holds, with `value` integral.
+(minimum-weight sum exceeds capacity), `choices` is `null`, `value` is 0,
+and `bounds`/`stats` remain populated (`bounds` as `{lpUpper: 0,
+greedyLower: 0}`; `stats` reports the reduction pipeline with
+`dpRequired: false`, `dpCellsVisited: 0`). When optimal, the bracket
+`greedyLower ≤ value ≤ lpUpper` always holds, with `value` integral.
 
 ### 3.5 Worked example
 
@@ -637,14 +639,15 @@ classic bound-hardening family); *coarse weights* (multiples of 10 — lattice
 alignment stress); *profit cliffs* (later options at ~30% of profit —
 dent-heavy Pareto shapes targeting the hull/Pareto seam); *uniform random*.
 
-**Results.** 0 failures / 600 seeds. All 600 feasible instances solved
-exactly; the DP stage ran on 307/600 (51%), visiting on average 131 cells.
-The CI suite additionally carries a 300-seed brute-force cross-check,
-property tests (bounds bracketing, choice feasibility, replay-hash
-determinism — each instance solved twice, serialized outputs compared
-byte-for-byte), and edge cases (single group, single-option groups,
-zero-weight purge options, infeasible instances, duplicate and dominated
-options): 307 tests, all green.
+**Results.** 0 failures / 600 seeds (512 feasible, 88 infeasible —
+infeasibility agreement exercised; the DP stage ran on 233/512 feasible
+instances, 46%). The committed suite (`test/adversarial.test.ts`) runs
+this battery in CI on every push, with per-seed replay-hash determinism
+(each instance solved twice, serialized outputs compared byte-for-byte).
+The CI suite additionally carries a 300-seed uniform brute-force
+cross-check, property tests (bounds bracketing, choice feasibility), and
+edge cases (single group, single-option groups, zero-weight purge
+options, infeasible instances, duplicate and dominated options).
 
 ### 7.2 Latency benchmarks
 

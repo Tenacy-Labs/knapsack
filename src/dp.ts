@@ -34,8 +34,8 @@ export interface DpResult {
 
 /**
  * Peak DP allocation in back-pointer mode: n·(C+1) bytes of back-pointers
- * plus two Int32Array value rows. Cross-validated within ±3% against
- * measured peak RSS across 11 shapes and two languages.
+ * plus two Int32Array value rows. Pinned by test as an exact-change
+ * detector; the budget dispatch is covered through solve().
  */
 export function expectedDpBytes(groups: number, capacity: number): number {
   return groups * (capacity + 1) + 8 * (capacity + 1);

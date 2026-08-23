@@ -16,7 +16,8 @@ export interface SolveOptions {
   /**
    * Back-pointer table budget in bytes (default 50 MiB). When
    * expectedDpBytes(n, C) exceeds it, the exact DP runs in O(C)-memory
-   * divide-and-conquer mode instead (≤ 2× time, same results).
+   * divide-and-conquer mode instead (≤ 2× time, same optimal value;
+   * tie-broken selections may differ between modes).
    */
   readonly maxDpBytes?: number;
 }
@@ -161,19 +162,3 @@ function extractChoices(
   }
   return choices;
 }
-
-export { solveLp } from "./lp.ts";
-export { reduceGroupToHull, convexHull } from "./dominance.ts";
-export { solveDp } from "./dp.ts";
-export { fathomOptions } from "./fathom.ts";
-export {
-  KnapsackValidationError,
-  type KnapsackProblem,
-  type KnapsackOption,
-  type KnapsackGroup,
-  type KnapsackResult,
-  type KnapsackBounds,
-  type KnapsackStats,
-  type KnapsackChoice,
-  type ReducedGroup,
-} from "./types.ts";

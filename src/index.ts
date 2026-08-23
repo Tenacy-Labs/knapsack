@@ -1,14 +1,13 @@
+// Public surface. Deliberately small: P1 semver discipline names exactly
+// these symbols (docs/future-work.md). Anything else is internal — import
+// it from its module in-repo, but it is not contract.
 export { solve } from "./solve.ts";
-export { solveLp, type LpSolution } from "./lp.ts";
-export { reduceGroupToHull, reduceAll } from "./dominance.ts";
+export type { SolveOptions } from "./solve.ts";
 export {
-  solveDp,
   expectedDpBytes,
   DEFAULT_DP_BUDGET,
   type DpResult,
 } from "./dp.ts";
-export { fathomOptions, type FathomResult } from "./fathom.ts";
-export type { SolveOptions } from "./solve.ts";
 export { validateProblem } from "./validate.ts";
 export { KnapsackValidationError } from "./types.ts";
 export type {

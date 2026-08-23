@@ -56,9 +56,12 @@ export interface KnapsackResult {
    */
   readonly status: "optimal" | "infeasible";
   readonly value: number;
+  /** null iff infeasible. */
   readonly choices: readonly KnapsackChoice[] | null;
-  readonly bounds: KnapsackBounds | null;
-  readonly stats: KnapsackStats | null;
+  /** Always populated. Infeasible: {lpUpper: 0, greedyLower: 0}. */
+  readonly bounds: KnapsackBounds;
+  /** Always populated (reduction pipeline stats; dpRequired false, 0 cells when infeasible). */
+  readonly stats: KnapsackStats;
 }
 
 /** Internal: one group reduced to its strict upper hull, sorted by weight ascending. */

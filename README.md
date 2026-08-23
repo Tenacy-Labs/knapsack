@@ -84,8 +84,9 @@ re-solved every turn (full survey with sources in [`docs/survey.md`](docs/survey
 
 Peak DP allocation is predictable at solve time:
 `expectedDpBytes(n, C) = n·(C+1) + 8·(C+1)` bytes in back-pointer mode
-(u8 table), cross-validated within ±3% against measured peak RSS across
-11 shapes and two languages. Above a configurable budget (default
+(u8 table). This formula is pinned by test (exact-change detector); the
+budget dispatch it feeds is covered through the public `solve()` entry
+(`test/adversarial.test.ts`). Above a configurable budget (default
 50 MiB) the solver automatically uses the O(C)-memory divide-and-conquer
 traceback — exact, deterministic, ≤ 2× time — so worst-case memory stays
 under `16·(C+1) + ε` bytes no matter how many groups the caller brings.
@@ -111,16 +112,18 @@ Measured on this machine (Mac Studio, Bun 1.3), median per-solve:
 | 30 groups × 3 options, roomy capacity | 11 µs | 0% |
 
 Correctness gate: every release is cross-checked against exhaustive
-brute force on randomized instances (300 seeds in CI plus an adversarial
-fuzz corpus: strongly-correlated, coarse-weight, and profit-cliff styles,
-tight and roomy capacities — 600 seeds, zero divergence).
+brute force on randomized instances — a 600-seed adversarial battery
+(strongly-correlated, coarse-weight, and profit-cliff styles; tight,
+medium, and roomy capacities; infeasibility agreement; replay-hash
+determinism) plus a 300-seed uniform battery, all committed in
+`test/adversarial.test.ts` and `test/solver.test.ts` and run in CI.
 
 ## Development
 
 ```sh
 bun install
 bun run typecheck   # bunx tsc --noEmit, strictest flags
-bun test            # 307 tests incl. brute-force cross-check
+bun test            # 1,200+ tests incl. the 600-seed adversarial cross-check
 bun run bench       # the numbers above
 ```
 
