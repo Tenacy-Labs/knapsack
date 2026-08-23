@@ -161,19 +161,3 @@ function extractChoices(
   }
   return choices;
 }
-
-export { solveLp } from "./lp.ts";
-export { reduceGroupToHull, convexHull } from "./dominance.ts";
-export { solveDp } from "./dp.ts";
-export { fathomOptions } from "./fathom.ts";
-export {
-  KnapsackValidationError,
-  type KnapsackProblem,
-  type KnapsackOption,
-  type KnapsackGroup,
-  type KnapsackResult,
-  type KnapsackBounds,
-  type KnapsackStats,
-  type KnapsackChoice,
-  type ReducedGroup,
-} from "./types.ts";

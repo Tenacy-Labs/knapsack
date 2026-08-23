@@ -2,10 +2,23 @@
   "name": "@connectotron/knapsack",
   "version": "0.1.1",
   "private": true,
+  "description": "Exact multiple-choice knapsack (MCKP) solver — pure TypeScript, zero dependencies, integer-exact, deterministic",
+  "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Connectotron/knapsack.git"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE",
+    "docs/paper.md",
+    "docs/future-work.md"
+  ],
   "scripts": {
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test",

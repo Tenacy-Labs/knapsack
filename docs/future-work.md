@@ -90,9 +90,15 @@ signal: a stranger can install, call, and interpret results without
 reading the source.*
 
 - **P1. Semver discipline** — *build-when: first external consumer.*
-  v0.1.x is additive-only over the exported surface (`solve`,
-  `SolveOptions`, `expectedDpBytes`, `DpResult`, validation errors);
-  breaking changes require v0.2 and a migration note. Policy, not code.
+  v0.1.x is additive-only over the exported surface (`src/index.ts`,
+  which is deliberately narrow): `solve`, `SolveOptions`,
+  `expectedDpBytes`, `DEFAULT_DP_BUDGET`, `DpResult`,
+  `validateProblem`, `KnapsackValidationError`, and the
+  `Knapsack*`/`ReducedGroup` types. Pipeline internals (`solveLp`,
+  `solveDp`, `fathomOptions`, `reduceAll`, `reduceGroupToHull`) are
+  module-level exports for in-repo composition, deliberately NOT on the
+  package surface since 2026-08-23; breaking changes to either tier
+  require v0.2 and a migration note. Policy, not code.
 - **P2. Package publishing** — *build-when: the agent-kernel swap lands
   AND the owner approves external publication.* Repo is private;
   GitHub Packages under the `@connectotron` scope is the first stop

@@ -137,3 +137,53 @@ Honest assessment:
 - The multi-period/fitter questions were design reviews, not code —
   ruled out-of-charter for this library in the paper and ADR lineage.
 
+
+---
+
+# Code Review — public surface & hygiene (2026-08-23)
+
+Fresh-context subagent review (report preserved at review time in
+/tmp/knapsack-review-surface.md; all findings re-verified by the
+orchestrator before acceptance). **0 critical / 5 major / 7 minor.**
+Kernel clean; defects concentrated at the package boundary. All 5
+majors fixed on `fix/review-majors`:
+
+1. **M1 — infeasible result shape misdocumented.** Paper §3.4 claimed
+   `bounds`/`stats` are `null` on infeasible; code populates both.
+   Ruling: the code's contract is better (diagnostics survive); docs
+   and `types.ts` narrowed to match (`choices` is the only nullable
+   field). Regression test committed (infeasible-contract describe
+   block + assertions on every infeasible battery instance).
+2. **M2 — correctness-gate evidence not committed.** README/paper §7.1
+   cited a 600-seed adversarial fuzz + replay-hash determinism harness
+   that existed only as /tmp scripts. Committed as
+   `test/adversarial.test.ts`: 600 seeds × 4 styles × 3 capacity
+   regimes (tight regime straddles feasibility: 512 feasible / 88
+   infeasible / 233 DP-required), independent brute-force oracle,
+   per-seed replay determinism, bounds-bracketing, choice-validity.
+   The uncommitted "±3% RSS cross-validation" claim rewritten to what
+   is actually tested (formula pin + budget dispatch coverage).
+3. **M3 — CI perf-blind + lockfile freeze voided.** CI now pins
+   Bun 1.3.14, runs `bun install --frozen-lockfile` strictly (fallback
+   removed), and runs the bench with per-commit artifact upload
+   (Q1 made real, threshold-free).
+4. **M4 — export surface vs semver policy.** `index.ts` trimmed to the
+   P1-named surface (22 → 17 symbols: pipeline internals `solveLp`,
+   `solveDp`, `fathomOptions`, `reduceAll`, `reduceGroupToHull` are now
+   module-level only); duplicate re-export block removed from
+   `solve.ts`; P1 ledger updated to name the full public tier;
+   `maxDpBytes` now covered through the public `solve()` entry
+   (tight-budget D&C dispatch, results identical).
+5. **M5 — package metadata.** `"license": "MIT"`, description,
+   repository, `files` allowlist. Tarball: 26 files / 207 kB →
+   13 files / 33.9 kB (verified `npm pack --dry-run`).
+
+Gates after fixes: tsc strictest clean; 1,235/1,235 tests (632 → 1,235);
+bench unchanged within noise (62/91/4,217/705/11 µs); bare-specifier
+import through `exports` verified.
+
+Minors (documented, not all fixed): README perf table omits the
+wide-capacity row; three `solve —` describe names exercise `solveDp`
+directly; oracle `combo` array dead; integration golden pins internals
+(intentional change-detector); v0.1.1 tag predates these fixes — bump
+to 0.1.2 at P2 rather than retag.
