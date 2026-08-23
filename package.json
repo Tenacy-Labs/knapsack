@@ -1,6 +1,6 @@
 {
   "name": "@connectotron/knapsack",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Exact multiple-choice knapsack (MCKP) solver — pure TypeScript, zero dependencies, integer-exact, deterministic",
   "license": "MIT",
