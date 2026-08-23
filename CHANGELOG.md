@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format is
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 semver. The v0.1.1 entry is seeded from its tag annotation.
 
+## [Unreleased]
+
+### Added
+- **`result.frontier` (ADR-0001, ledger I3)** — opt-in via
+  `{ frontier: true }`: the certified Pareto frontier P\*(w) of the solve
+  — kinks from an exact standalone value-row sweep over
+  dominance-reduced groups, ascending weight, strictly increasing value,
+  lead point carrying P\*(0) (0 under the purge convention; the
+  free-profit value when zero-weight positive-profit options exist —
+  corrected in review), last point the classical optimum. Consumers scan
+  U(w) = ρ(w)·P\*(w) + H(C−w) for a rot-aware operating point w\*, then
+  re-solve at `capacity: w\*` for the layout. Frontier derives from
+  dominance-reduced sets, never fathomed ones — fathoming is
+  capacity-specific and frontier-unsafe; a randomized 600-seed battery
+  now brute-forces P\*(w) at every w ∈ [0, C] against the exposed kinks.
+  Default solve path unchanged (bench identical: 61/91/4248/708/11 µs).
+  New public types `FrontierPoint`; `computeFrontier(reduced, capacity)`
+  exported for advanced callers (input domain: validateProblem's).
+
 ## [0.1.2] — 2026-08-23
 
 Review-hardened public surface: two fresh-context reviews (surface/hygiene

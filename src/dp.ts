@@ -1,4 +1,4 @@
-import { ReducedGroup } from "./types.ts";
+import { FrontierPoint, ReducedGroup } from "./types.ts";
 
 /**
  * Exact MCKP via two-row Bellman DP with reachable-weight windowing
@@ -56,6 +56,101 @@ export function solveDp(
     return solveDpDivideConquer(reduced, capacity);
   }
   return solveDpBackpointer(reduced, capacity);
+}
+
+/**
+ * ADR-0001 frontier (ledger I3): kinks of the Pareto frontier P*(w) from a
+ * full value-row sweep over the DOMINANCE-REDUCED groups. Fathoming is
+ * capacity-specific (an option dropped for the C-optimum may be the
+ * w-optimum for w < C), so the frontier must never be derived from
+ * fathomed sets. One O(C·k̄) sweep, O(C) memory, integers only, no
+ * back-pointers. The lead point carries P*(0): 0 under the purge
+ * convention, the sum of zero-weight positive-profit options when they
+ * exist (ADR-0001's U(w) scan needs the true floor). Inputs must
+ * satisfy validateProblem's domain (integer weights/profits,
+ * non-negative) — via solve() they always do; advanced callers calling
+ * this export directly own that invariant. Allocates two
+ * Int32Array(C+1) rows ≈ 8·(C+1) bytes regardless of maxDpBytes
+ * (bounded; small relative to DEFAULT_DP_BUDGET).
+ */
+export function computeFrontier(
+  reduced: readonly ReducedGroup[],
+  capacity: number,
+): FrontierPoint[] {
+  if (reduced.length === 0 || capacity < 0) return [{ weight: 0, value: 0 }];
+  const width = capacity + 1;
+  const row = new Int32Array(width).fill(-1);
+  const scratch = new Int32Array(width).fill(-1);
+  sweepValueRow(reduced, capacity, row, scratch);
+  // Kink extraction: strict value increases; smallest weight per value.
+  // Lead point: row[0] is P*(0) when every group has a zero-weight option
+  // (free-profit shapes: ADR-0001's U(w) scan needs it), else -1 = the
+  // {0, 0} purge floor. Byte-identical to the purge convention when no
+  // free profit exists.
+  const lead = row[0]! > 0 ? row[0]! : 0;
+  const kinks: FrontierPoint[] = [{ weight: 0, value: lead }];
+  let best = lead;
+  for (let w = 1; w <= capacity; w++) {
+    const v = row[w]!;
+    if (v > best) {
+      kinks.push({ weight: w, value: v });
+      best = v;
+    }
+  }
+  return kinks;
+}
+
+/** One full forward value-row sweep over all groups under cap: out[w] =
+ *  best value at EXACT total weight w, -1 = unreachable. Same Bellman
+ *  kernel as sweepForward/sweepBackward (windowed, int-initialized
+ *  min/max, exact-weight rows); standalone (fresh rows, no shared
+ *  mutable scratch with the solving path). */
+function sweepValueRow(
+  reduced: readonly ReducedGroup[],
+  cap: number,
+  row: Int32Array,
+  scratch: Int32Array,
+): void {
+  const g0 = reduced[0]!;
+  let wLo = g0.options[0]!.weight;
+  let wHi = wLo;
+  for (let i = 0; i < g0.options.length; i++) {
+    const o = g0.options[i]!;
+    if (o.weight < wLo) wLo = o.weight;
+    if (o.weight > wHi) wHi = o.weight;
+    if (o.weight <= cap && o.profit > row[o.weight]!) {
+      row[o.weight] = o.profit;
+    }
+  }
+  for (let gi = 1; gi < reduced.length; gi++) {
+    const g = reduced[gi]!;
+    let gMin = g.options[0]!.weight;
+    let gMax = gMin;
+    for (let i = 0; i < g.options.length; i++) {
+      const wgt = g.options[i]!.weight;
+      if (wgt < gMin) gMin = wgt;
+      if (wgt > gMax) gMax = wgt;
+    }
+    const lo = wLo + gMin;
+    const hi = Math.min(cap, wHi + gMax);
+    scratch.fill(-1);
+    for (let w = lo; w <= hi; w++) {
+      let best = -1;
+      for (let i = 0; i < g.options.length; i++) {
+        const o = g.options[i]!;
+        const pw = w - o.weight;
+        if (pw < 0) continue;
+        const pv = row[pw]!;
+        if (pv < 0) continue;
+        const v = pv + o.profit;
+        if (v > best) best = v;
+      }
+      scratch[w] = best; // -1 stays unreachable
+    }
+    row.set(scratch);
+    wLo = lo;
+    wHi = hi;
+  }
 }
 
 /** Back-pointer mode: flat Uint8Array table, O(n) traceback. */

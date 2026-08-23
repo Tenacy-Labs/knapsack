@@ -167,16 +167,15 @@ Success signal: agent-kernel solves through this package in production.*
   chosen parameters (ADR-0003's replay harness) needs a stable,
   versioned corpus format; the exchange format (i32 stream) is the
   natural seed. Corpus files need a `.gitattributes` binary marker.
-- **I3. Frontier exposure (ADR-0001)** — `result.frontier`: the DP's
-  final value row as certified Pareto kinks (low-w coverage down to
-  purge; full-row escape-hatch flag for non-monotone consumer
-  utilities). Result-surface change only; the row is already computed
-  and discarded. Consumer runs the rot scan U(w) = ρ(w)·P\*(w) + H(C−w)
-  and re-solves at the chosen w\* for the layout.
-  - Trigger: agent-kernel's ADR-0001 rot scan goes live (build together;
-    the consumer defines the shape).
-  - Cost: kink extraction + surface + tests; oracle battery re-run.
-    Est. 0.5 day.
+- **I3. Frontier exposure (ADR-0001)** — SHIPPED 2026-08-23
+  (feat/frontier-exposure): `result.frontier` when requested via
+  `{ frontier: true }`. Kinks of P\*(w) from an exact standalone sweep
+  over dominance-reduced groups — fathoming is capacity-specific and
+  frontier-unsafe (a fathomed-at-C option can be the w-optimum at lower
+  w; the fathom-safety test now asserts a genuinely-fathoming corpus and
+  would fail under a fathom-unsafe refactor). The 600-seed adversarial
+  battery brute-forces P\*(w) at every w against the exposed kinks.
+  Default path untouched; bench at baseline.
 
 ## Goal 5 — Research extensions
 

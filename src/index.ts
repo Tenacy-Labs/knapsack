@@ -6,6 +6,7 @@ export type { SolveOptions } from "./solve.ts";
 export {
   expectedDpBytes,
   DEFAULT_DP_BUDGET,
+  computeFrontier,
   type DpResult,
 } from "./dp.ts";
 export { validateProblem } from "./validate.ts";
@@ -18,5 +19,6 @@ export type {
   KnapsackBounds,
   KnapsackStats,
   KnapsackResult,
+  FrontierPoint,
   ReducedGroup,
 } from "./types.ts";

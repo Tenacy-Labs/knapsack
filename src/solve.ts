@@ -9,7 +9,7 @@ import { validateProblem } from "./validate.ts";
 import { reduceAll, convexHull } from "./dominance.ts";
 import { solveLp, greedyWalk } from "./lp.ts";
 import { fathomOptions } from "./fathom.ts";
-import { solveDp, DEFAULT_DP_BUDGET } from "./dp.ts";
+import { solveDp, computeFrontier, DEFAULT_DP_BUDGET } from "./dp.ts";
 
 /** Options for advanced callers. All optional. */
 export interface SolveOptions {
@@ -20,6 +20,13 @@ export interface SolveOptions {
    * tie-broken selections may differ between modes).
    */
   readonly maxDpBytes?: number;
+  /**
+   * ADR-0001: expose `result.frontier` — the certified Pareto kinks of
+   * P*(w) over the full weight range [0, capacity]. Costs one extra
+   * O(C·k̄) value-row sweep over the dominance-reduced groups (computed
+   * whether or not the classical DP was required). Absent by default.
+   */
+  readonly frontier?: boolean;
 }
 
 /**
@@ -73,6 +80,8 @@ export function solve(
         dpRequired: false,
         dpCellsVisited: 0,
       },
+      // ADR-0001: degenerate frontier — nothing but the purge floor exists.
+      ...(options.frontier ? { frontier: [{ weight: 0, value: 0 }] } : {}),
     };
   }
 
@@ -95,6 +104,11 @@ export function solve(
         dpRequired: false,
         dpCellsVisited: 0,
       },
+      // ADR-0001: frontier computed from dominance-reduced sets (never
+      // fathomed ones — fathoming is capacity-specific, frontier-unsafe).
+      ...(options.frontier
+        ? { frontier: computeFrontier(pareto, problem.capacity) }
+        : {}),
     };
   }
 
@@ -146,6 +160,11 @@ export function solve(
       dpRequired: true,
       dpCellsVisited: dp.cellsVisited,
     },
+    // ADR-0001: frontier from dominance-reduced sets, independent of the
+    // DP's budget mode (back-pointer or divide-and-conquer).
+    ...(options.frontier
+      ? { frontier: computeFrontier(pareto, problem.capacity) }
+      : {}),
   };
 }
 
