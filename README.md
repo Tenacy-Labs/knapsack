@@ -18,11 +18,11 @@ got close.
 | | |
 |---|---|
 | **Exact, not heuristic** | never "probably optimal" — every result is certified |
-| **Hot-loop fast** | 12 µs – 4.2 ms per solve at realistic shapes (median, measured) |
-| **Zero dependencies** | pure TypeScript; the whole tarball is 34 kB |
+| **Hot-loop fast** | 11 µs – 4.1 ms per solve at realistic shapes (median, measured) |
+| **Zero dependencies** | pure TypeScript; the whole tarball is 40 kB |
 | **Deterministic** | same input → byte-identical output, every run, forever |
 | **Memory-bounded** | worst-case DP memory stays under `16·(C+1)` bytes at any input size |
-| **Battle-tested** | 1,236 tests; ~92,000-instance adversarial fuzz vs brute force, zero wrong answers |
+| **Battle-tested** | 1,251 tests; ~92,000-instance adversarial fuzz vs brute force, zero wrong answers |
 
 Born from [agent-kernel](https://github.com/Connectotron/agent-kernel)'s
 per-turn context optimizer (ADR-0005: the render solve *is* an MCKP),
@@ -77,6 +77,95 @@ result.frontier; // [{ weight: 0, value: 0 }, ... ] — ADR-0001 Pareto kinks of
 Ships as TypeScript source (no build step under Bun; trivially
 compilable with `tsc` for any runtime).
 
+## What a problem looks like
+
+Every decision is a **group**; each way to make it is an **option**
+carrying a cost (`weight`) and a value (`profit`); `capacity` is the
+budget. The solver picks one option per group, maximizing total profit
+within budget.
+
+The quick start above is agent-kernel's context render, but the mapping
+is domain-agnostic — a packing list works identically:
+
+```ts
+const trip = {
+  groups: [
+    {
+      id: "jacket",
+      options: [
+        { id: "shell", weight: 480, profit: 90 }, // waterproof, warm
+        { id: "vest",  weight: 220, profit: 55 },
+        { id: "none",  weight: 0,   profit: 0  }, // "bring nothing"
+      ],
+    },
+    {
+      id: "camera",
+      options: [
+        { id: "body+2lenses", weight: 1_600, profit: 120 },
+        { id: "body+1lens",   weight: 1_100, profit: 84  },
+        { id: "phone",        weight: 0,     profit: 20  },
+      ],
+    },
+    // ...one group per decision, any number of groups
+  ],
+  capacity: 4_000, // grams of carry-on allowance
+};
+```
+
+Three conventions matter:
+
+- `weight` and `profit` are non-negative integers — tokens and utility
+  points, grams and priorities, all fit. No floats in, no floats out.
+- "Choose nothing" is modeled *explicitly* as a zero-weight zero-profit
+  option (the `none`/`purge` entries above). Omit it and opting out of a
+  decision is not expressible.
+
+## Reading the frontier
+
+`result.frontier` answers "what is the best I can do at *any* budget?"
+Each entry is a **kink**: the weight where the best achievable layout
+changes, and the certified value there. For the quick-start problem at
+`capacity: 800`:
+
+```ts
+solve(problem, { frontier: true }).frontier;
+// [ { weight:   0, value:   0 },
+//   { weight:  55, value:  48 },
+//   { weight:  60, value:  55 },
+//   { weight: 115, value: 103 },
+//   { weight: 440, value: 139 },
+//   { weight: 800, value: 174 } ]
+```
+
+Read it as a staircase — each row says: *"if my budget were at least
+this much weight, this much profit is provably attainable, via this
+layout"*:
+
+| kink w | P\*(w) | the layout that earns it |
+|---|---|---|
+| 0 | 0 | purge both files |
+| 55 | 48 | keep `dp.ts` as outline |
+| 60 | 55 | keep `lp.ts` as outline |
+| 115 | 103 | both files as outlines |
+| 440 | 139 | `lp.ts` outline + `dp.ts` full |
+| 800 | 174 | both files full — the classical optimum |
+
+Three properties make the array trustworthy without reading source:
+
+- **Certified, not sampled.** Every value is an exact optimum
+  (P\*(w)); each layout is recoverable by re-solving at
+  `capacity: w` — `solveRot()` does exactly that internally.
+- **Kinks only.** Between two rows the earlier row stays optimal — the
+  curve is flat between bends, so the array is the whole curve in
+  compressed form.
+- **Monotone, ascending.** More budget never hurts: weights strictly
+  increase, values never decrease. The last row is always
+  `solve(problem)` itself.
+
+The frontier is what lets a consumer price trade-offs the solver cannot
+see: context rot over a shorter layout (the `solveRot` section below),
+headroom value in freed tokens, or knee-finding on your own curve.
+
 ## Solve with context rot in one call
 
 `solve()` returns the classical optimum — it cannot prefer a shorter
@@ -88,6 +177,8 @@ retention curve ρ and returns the layout at the best operating point.
 import { solveRot } from "@connectotron/knapsack";
 
 const result = solveRot(problem);   // rot-default-v1 if you pass nothing
+// `problem` here: the quick-start two-file problem at capacity: 800
+// (the frontier table above is this same problem)
 
 result.operatingWeight;    // 440 — the frontier point ρ picks
 result.value;              // 139 — certified optimum AT that budget
@@ -183,11 +274,11 @@ per-solve:
 
 | shape | time | DP invoked |
 |---|---|---|
-| 20 groups × 3 options, w≤400 | 62 µs | 51% |
+| 20 groups × 3 options, w≤400 | 61 µs | 51% |
 | 60 groups × 5 options, w≤600 | 91 µs | 3% |
-| 120 groups × 6 options, w≤800 | 4.2 ms | 52% |
-| 40 groups × 4 options, cap 8k (wide) | 703 µs | 26% |
-| 30 groups × 3 options, roomy capacity | 12 µs | 0% |
+| 120 groups × 6 options, w≤800 | 4.1 ms | 52% |
+| 40 groups × 4 options, cap 8k (wide) | 706 µs | 26% |
+| 30 groups × 3 options, roomy capacity | 11 µs | 0% |
 
 Correctness gate: every release is cross-checked against exhaustive
 brute force on randomized instances — a 600-seed adversarial battery
@@ -201,7 +292,7 @@ determinism) plus a 300-seed uniform battery, all committed in
 ```sh
 bun install
 bun run typecheck   # bunx tsc --noEmit, strictest flags
-bun test            # 1,236 tests incl. the 600-seed adversarial cross-check
+bun test            # 1,251 tests incl. the 600-seed adversarial cross-check
 bun run bench       # the numbers above
 ```
 
