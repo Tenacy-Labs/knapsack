@@ -67,6 +67,10 @@ result.value;    // 174 — the proven maximum
 result.choices;  // [{ groupId: "file:src/lp.ts", optionId: "full" }, ...]
 result.bounds;   // { lpUpper, greedyLower } — the certificate bracket
 result.stats;    // reduction counts, dpRequired, dpCellsVisited
+result.frontier; // [{ weight: 0, value: 0 }, ... ] — ADR-0001 Pareto kinks of P*(w),
+                 //   opt-in via solve(problem, { frontier: true }): the whole
+                 //   length-vs-value tradeoff in one certified array, so the
+                 //   consumer (not the solver) can price context rot U(w) = ρ(w)·P*(w)
 ```
 
 Ships as TypeScript source (no build step under Bun; trivially

@@ -62,6 +62,25 @@ export interface KnapsackResult {
   readonly bounds: KnapsackBounds;
   /** Always populated (reduction pipeline stats; dpRequired false, 0 cells when infeasible). */
   readonly stats: KnapsackStats;
+  /**
+   * ADR-0001: present iff options.frontier. Kinks of the Pareto frontier
+   * P*(w) = best achievable profit at total weight <= w, computed from the
+   * exact DP's value row over dominance-reduced groups. Ascending weight,
+   * strictly increasing value, first point always {0, 0} (the purge floor —
+   * genuine P*(0) when a zero-profit zero-weight selection exists, otherwise
+   * the empty-render convention), last point the classical optimum.
+   * Infeasible: [{0, 0}].
+   */
+  readonly frontier?: readonly FrontierPoint[];
+}
+
+/**
+ * One kink of the Pareto frontier: the smallest weight at which a given
+ * best value is attainable. Between kinks, P*(w) is constant.
+ */
+export interface FrontierPoint {
+  readonly weight: number;
+  readonly value: number;
 }
 
 /** Internal: one group reduced to its strict upper hull, sorted by weight ascending. */

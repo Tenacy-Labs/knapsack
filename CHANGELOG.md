@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 semver. The v0.1.1 entry is seeded from its tag annotation.
 
+## [Unreleased]
+
+### Added
+- **`result.frontier` (ADR-0001, ledger I3)** — opt-in via
+  `{ frontier: true }`: the certified Pareto frontier P\*(w) of the solve
+  — kinks of the DP's value row over dominance-reduced groups, ascending
+  weight, strictly increasing value, first point always `{0, 0}` (the
+  purge floor), last point the classical optimum. Consumers scan
+  U(w) = ρ(w)·P\*(w) + H(C−w) for a rot-aware operating point w\*, then
+  re-solve at `capacity: w\*` for the layout. One extra O(C·k̄) value-row
+  sweep on request; default solve path unchanged (bench at baseline).
+  Frontier is computed from dominance-reduced sets, never fathomed ones —
+  fathoming is capacity-specific and frontier-unsafe. New public types
+  `FrontierPoint`; `computeFrontier(reduced, capacity)` exported for
+  advanced callers.
+
 ## [0.1.2] — 2026-08-23
 
 Review-hardened public surface: two fresh-context reviews (surface/hygiene
