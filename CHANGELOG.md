@@ -7,6 +7,18 @@ semver. The v0.1.1 entry is seeded from its tag annotation.
 ## [Unreleased]
 
 ### Added
+- **`solveRot()` — one-call rot-aware solving (ADR-0001 §6)**: scans the
+  certified frontier under a retention spline ρ, picks the operating
+  point w\* maximizing U(w) = ρ(w)·P\*(w) + H(C−w), re-solves exactly at
+  w\*. Defaults to **rot-default-v1** (knee 0.40·C, ρ(knee)=0.95,
+  ρ(C)=0.50) when no rot is passed — zero-config start. Optional
+  `headroom: (freedTokens) => number` prices unused capacity. Returns
+  `operatingWeight`, `rotAdjustedValue` (float, scan objective),
+  `rot` (params used), plus the full certified result surface
+  (`value`/`choices`/`bounds`/`stats`/`frontier`) of the re-solve at
+  w\*. Core stays integer-pure and rot-blind (ADR framing A); floats
+  live only in the scan. New exports: `solveRot`, `DEFAULT_ROT`,
+  types `RotParams`/`RotSolveOptions`/`RotSolveResult`.
 - **`result.frontier` (ADR-0001, ledger I3)** — opt-in via
   `{ frontier: true }`: the certified Pareto frontier P\*(w) of the solve
   — kinks from an exact standalone value-row sweep over

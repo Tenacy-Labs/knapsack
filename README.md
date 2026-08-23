@@ -77,6 +77,41 @@ result.frontier; // [{ weight: 0, value: 0 }, ... ] — ADR-0001 Pareto kinks of
 Ships as TypeScript source (no build step under Bun; trivially
 compilable with `tsc` for any runtime).
 
+## Solve with context rot in one call
+
+`solve()` returns the classical optimum — it cannot prefer a shorter
+layout, because length is not priced. `solveRot()` adds that price in the
+consumer layer (ADR-0001): it scans the certified Pareto frontier under a
+retention curve ρ and returns the layout at the best operating point.
+
+```ts
+import { solveRot } from "@connectotron/knapsack";
+
+const result = solveRot(problem);   // rot-default-v1 if you pass nothing
+
+result.operatingWeight;    // 440 — the frontier point ρ picks
+result.value;              // 139 — certified optimum AT that budget
+result.choices;            // [{ groupId: "file:src/lp.ts", optionId: "outline" }, ...]
+result.rotAdjustedValue;   // 116.41 — ρ(w*)·P*(w), the scan's objective
+result.rot;                // the params used — defaults: knee 0.40·C,
+                           //   ρ(knee)=0.95, ρ(C)=0.50 (rot-default-v1)
+```
+
+Tune the rot model per model card, or price unused capacity with
+`headroom`:
+
+```ts
+// Mild rot — knee late, shallow cliff
+solveRot(problem, { rot: { kneeFraction: 0.9, kneeRetention: 0.99, floorRetention: 0.95 } });
+
+// Free-capacity utility: U(w) = ρ(w)·P*(w) + H(C−w)
+solveRot(problem, { headroom: (freedTokens) => 0.3 * freedTokens });
+```
+
+The core stays integer-pure and rot-blind; floats appear only in the
+operating-point scan. The layout itself is always the certified integer
+re-solve at `capacity: operatingWeight`.
+
 ## The problem
 
 ```
