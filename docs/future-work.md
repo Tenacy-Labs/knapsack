@@ -100,16 +100,18 @@ pattern. Requires a checkpoint handle from `solve()`.
 signal: a stranger can install, call, and interpret results without
 reading the source.*
 
-- **P1. Semver discipline** — *build-when: first external consumer.*
-  v0.1.x is additive-only over the exported surface (`src/index.ts`,
-  which is deliberately narrow): `solve`, `SolveOptions`,
-  `expectedDpBytes`, `DEFAULT_DP_BUDGET`, `DpResult`,
-  `validateProblem`, `KnapsackValidationError`, and the
-  `Knapsack*`/`ReducedGroup` types. Pipeline internals (`solveLp`,
-  `solveDp`, `fathomOptions`, `reduceAll`, `reduceGroupToHull`) are
-  module-level exports for in-repo composition, deliberately NOT on the
-  package surface since 2026-08-23; breaking changes to either tier
-  require v0.2 and a migration note. Policy, not code.
+- **P1. Semver discipline** — *build-when: first external consumer.* Public
+  surface as of v0.1.2 + Unreleased: `solve`, `SolveOptions`,
+  `solveRot`, `DEFAULT_ROT`, `RotParams`, `RotSolveOptions`,
+  `RotSolveResult`, `expectedDpBytes`, `DEFAULT_DP_BUDGET`,
+  `computeFrontier`, `DpResult`, `validateProblem`,
+  `KnapsackValidationError`, and the `Knapsack*`/`FrontierPoint`/
+  `ReducedGroup` types. v0.1.x is additive-only over this surface;
+  pipeline internals (`solveLp`, `solveDp`, `fathomOptions`, `reduceAll`,
+  `reduceGroupToHull`) are module-level exports for in-repo composition,
+  deliberately NOT on the package surface since 2026-08-23; breaking
+  changes to either tier require v0.2 and a migration note. Policy, not
+  code.
 - **P2. Package publishing** — *build-when: the agent-kernel swap lands
   AND the owner approves external publication.* Repo is private;
   GitHub Packages under the `@connectotron` scope is the first stop
@@ -176,6 +178,15 @@ Success signal: agent-kernel solves through this package in production.*
   would fail under a fathom-unsafe refactor). The 600-seed adversarial
   battery brute-forces P\*(w) at every w against the exposed kinks.
   Default path untouched; bench at baseline.
+
+- **I4. `solveRot()` convenience wrapper (2026-08-23, feat/rot-convenience)**
+  — SHIPPED: frontier scan + default rot (rot-default-v1) + optional
+  headroom, one call; the library's own first consumer, per Daniel's
+  approachability ruling. Consumer-side math lives in `src/rot.ts`;
+  core untouched (ADR framing A preserved). Canonicity of
+  rot-default-v1 moves to the library: agent-kernel imports `DEFAULT_ROT`
+  rather than re-declaring it (0004/A2 versioned param sets reference
+  the export; amendment note in ADR-0001 §6).
 
 ## Goal 5 — Research extensions
 
