@@ -105,10 +105,16 @@ jobs:
           EXT: ${{ matrix.ext }}
         run: |
           set -euo pipefail
+          dir="native/target/release"
           if [ -n "$CROSS_TARGET" ]; then
-            bin="native/target/$CROSS_TARGET/release/libknapsack_native$EXT"
+            dir="native/target/$CROSS_TARGET/release"
+          fi
+          # Unix cdylibs carry a lib prefix; MSVC ones do not
+          # (knapsack_native.dll, not libknapsack_native.dll).
+          if [ -f "$dir/libknapsack_native$EXT" ]; then
+            bin="$dir/libknapsack_native$EXT"
           else
-            bin="native/target/release/libknapsack_native$EXT"
+            bin="$dir/knapsack_native$EXT"
           fi
           cp "$bin" "$TRIPLE$EXT"
           hash_cmd="sha256sum"; command -v sha256sum >/dev/null || hash_cmd="shasum -a 256"
