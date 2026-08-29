@@ -117,7 +117,11 @@ reading the source.*
   GitHub Packages under the `@tenacy-labs` scope is the first stop;
   public npm only if the library
   outgrows the org. Publishing leaves the machine — owner approval is
-  part of the trigger, not a formality.
+  part of the trigger, not a formality. Automation landed 2026-08-29:
+  Release Please maintains a running release PR from conventional
+  commits; merging it bumps the version, updates this changelog, cuts
+  the tag, and publishes to GitHub Packages in the same run — the
+  merge *is* the approval gesture.
 - **P3. Cookbook** — *opportunistic; bundle with P2.* `docs/examples.md`:
   choosing `maxDpBytes`, reading `stats` (bounds gap, certificate,
   cellsVisited, mode), the four validation ceilings, what each envelope
