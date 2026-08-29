@@ -11,6 +11,10 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Write is only exercised by the baseline auto-push on main;
+    # fork PRs receive a read-only token regardless.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -23,11 +27,24 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx tsc --noEmit
       - run: bun test
-      # Perf visibility (Q1): no thresholds yet — numbers are recorded
-      # as an artifact per commit so regressions are diffable after the
-      # fact instead of invisible.
+      # Perf visibility (Q1): raw numbers recorded as an artifact per
+      # commit; the gate below turns >20% regressions into failures.
       - name: Benchmark
-        run: bun run bench | tee bench-output.txt
+        run: bun run bench --json=bench.json | tee bench-output.txt
+      # Perf gate (Q1): fail the PR when median per-solve time regresses
+      # more than 20% against the main-branch baseline (auto-pushed to
+      # gh-pages by the run below on main pushes).
+      - name: Perf gate (20% regression threshold)
+        uses: rhysd/action-benchmark@v1
+        with:
+          tool: "customSmallerIsBetter"
+          output-file-path: bench.json
+          alert-threshold: "120%"
+          fail-on-alert: true
+          comment-on-alert: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Main pushes update the baseline; PRs compare against it.
+          auto-push: ${{ github.ref == 'refs/heads/main' }}
       - name: Upload bench artifact
         uses: actions/upload-artifact@v4
         with:

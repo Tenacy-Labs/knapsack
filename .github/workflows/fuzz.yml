@@ -1,0 +1,41 @@
+name: Nightly Fuzz
+
+# Deep adversarial fuzz (AGENTS.md): widen the seed battery and walk
+# into fresh seed territory each night. Pure local computation — the
+# oracle is an in-process brute force; no keys, no external services.
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: "Seeds to run (default 10000)"
+        default: "10000"
+      offset:
+        description: "Seed offset (default: nightly date-derived)"
+
+permissions:
+  contents: read
+
+jobs:
+  deep-fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned to match ci.yml.
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      # Each night starts where the last left off: day-of-year × 100
+      # walks ~36k fresh seeds/year. Failures report the seed number;
+      # reproduce locally with the same FUZZ_SEEDS/FUZZ_SEED_OFFSET.
+      - name: Derive nightly seed offset
+        if: github.event_name == 'schedule'
+        run: echo "NIGHTLY_OFFSET=$(( $(date -u +%j) * 100 ))" >> "$GITHUB_ENV"
+      - name: Deep fuzz (adversarial battery vs brute-force oracle)
+        run: bun test test/adversarial.test.ts
+        env:
+          FUZZ_SEEDS: ${{ github.event.inputs.seeds || '10000' }}
+          FUZZ_SEED_OFFSET: ${{ github.event.inputs.offset || env.NIGHTLY_OFFSET || '0' }}

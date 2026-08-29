@@ -3,6 +3,8 @@
  * integer token weights) and stress shapes beyond it.
  *
  * Run: bun run bench/bench.ts
+ *      bun run bench/bench.ts --json=bench.json   (machine-readable,
+ *      consumed by the CI perf gate; per-solve µs, smaller is better)
  */
 import { solve } from "../src/index.ts";
 
@@ -49,6 +51,8 @@ function buildProblem(shape: Shape, r: () => number) {
   return { groups, capacity };
 }
 
+const results: { name: string; unit: string; value: number }[] = [];
+
 console.log("shape | iters | total ms | per-solve µs (median of batch means)");
 console.log("---|---|---|---");
 for (const shape of SHAPES) {
@@ -77,7 +81,16 @@ for (const shape of SHAPES) {
   batchMeans.sort((a, b) => a - b);
   const median = batchMeans[Math.floor(batchMeans.length / 2)]!;
   const dpPct = Math.round((100 * dpRuns) / shape.iterations);
+  results.push({ name: shape.name, unit: "us/solve", value: median * 1000 });
   console.log(
     `${shape.name} | ${shape.iterations} | ${(median * shape.iterations).toFixed(0)} | ${Math.round(median * 1000)}µs (DP ${dpPct}%, ${dpRuns ? Math.round(totalCells / dpRuns) : 0} cells avg)`,
   );
+}
+
+// Machine-readable output for the CI perf gate (custom smaller-is-better).
+const jsonArg = process.argv.find((a) => a.startsWith("--json="));
+if (jsonArg) {
+  const path = jsonArg.slice("--json=".length);
+  await Bun.write(path, JSON.stringify(results, null, 2) + "\n");
+  console.log(`wrote ${path}`);
 }

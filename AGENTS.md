@@ -44,6 +44,13 @@ PRs run anti-weakening checks beyond the test suite
   `docs/future-work.md`) require owner review.
 - PR titles must be Conventional Commits (`feat:`, `fix:`, ...) —
   Release Please versions from them.
+- Perf gate: a PR whose median per-solve time regresses more than 20%
+  on any bench shape fails CI (baseline maintained on `gh-pages` by
+  main-branch runs). Re-run the bench before assuming a machine blip.
+- Nightly deep fuzz widens the adversarial seed battery (no keys —
+  the oracle is an in-process brute force). A failure names its seed;
+  reproduce with `FUZZ_SEEDS=<n> FUZZ_SEED_OFFSET=<off> bun test
+  test/adversarial.test.ts`.
 
 ## Releases are automated — do not do these by hand
 

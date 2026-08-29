@@ -138,12 +138,21 @@ function checkChoicesValid(p: KnapsackProblem, result: ReturnType<typeof solve>)
   expect(profit).toBe(result.value);
 }
 
-describe("solve — adversarial fuzz battery (600 seeds × 4 styles × 3 regimes)", () => {
+/**
+ * Knobs for the nightly deep-fuzz workflow (no secrets involved — the
+ * oracle is an in-process brute force): FUZZ_SEEDS grows the battery,
+ * FUZZ_SEED_OFFSET explores fresh seed territory. Defaults keep CI
+ * exactly as it was: seeds 1..600.
+ */
+const FUZZ_SEEDS = Number(process.env.FUZZ_SEEDS ?? 600);
+const FUZZ_SEED_OFFSET = Number(process.env.FUZZ_SEED_OFFSET ?? 0);
+
+describe(`solve — adversarial fuzz battery (${FUZZ_SEEDS} seeds × 4 styles × 3 regimes)`, () => {
   let frontierMismatches = 0; // battery-level guard: frontier oracle drift
   let feasibleCount = 0;
   let dpCount = 0;
 
-  for (let seed = 1; seed <= 600; seed++) {
+  for (let seed = 1 + FUZZ_SEED_OFFSET; seed <= FUZZ_SEEDS + FUZZ_SEED_OFFSET; seed++) {
     test(`adversarial seed ${seed}`, () => {
       const { problem } = buildInstance(seed);
       const expected = bruteForce(problem);
