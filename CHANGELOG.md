@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format is
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 semver. The v0.1.1 entry is seeded from its tag annotation.
 
+## [0.3.1](https://github.com/Tenacy-Labs/knapsack/compare/v0.3.0...v0.3.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* honor the frontier contract in bounded relief mode ([275d8b5](https://github.com/Tenacy-Labs/knapsack/commit/275d8b508d728797e7e578e51fc35a407bc333a9))
+* **native:** reject raw-ABI overflow and empty-group inputs ([90a7ee5](https://github.com/Tenacy-Labs/knapsack/commit/90a7ee59e31d348fa577dc3725650fcff9bace09))
+* resolve bun:ffi lazily so non-Bun runtimes load the package ([53dfdee](https://github.com/Tenacy-Labs/knapsack/commit/53dfdee900b117a9d1c1fb3bf499c6f30fd46a76))
+* review round 4 — bounded frontier contract, native build pipeline, CI hardening ([1089821](https://github.com/Tenacy-Labs/knapsack/commit/10898215f1fbd290a87a3d1df0e470c7bbc47221))
+
 ## [0.3.0] — 2026-08-24
 
 > Reconciled by hand 2026-08-29 (review round 4): the 0.3.0 version
