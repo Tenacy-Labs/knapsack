@@ -83,16 +83,25 @@ pattern. Requires a checkpoint handle from `solve()`.
   full-width once n is large (Σmin ≪ C ≪ Σmax), and D&C caps the
   over-budget case. Revisit only for a shape family with mid-range
   windows AND tables under budget.
-- **D2. Native/WASM/SIMD kernel** — measured ~1.7–2× kernel edge
-  (bandwidth-bound: ~1.9 vs ~3.5 ns/cell); u8+D&C removed the crash
-  asymmetry and pinned both languages to O(C) rows. Buys a constant
-  factor on a path costing microseconds 57–97% of the time, at the
-  price of a second implementation and drift between two exact solvers.
-  Revisit at n ≳ 1,000 with tight latency requirements.
-- **D3. Default pre-flight greedy fallback** — surrenders exactness by
-  default; the library's identity is exactness, and D&C already bounds
-  memory. The `maxDpBytes` knob exists for callers; policy below the
-  line is theirs, not ours.
+- **D2. Native/WASM/SIMD kernel — SUPERSEDED (shipped 2026-08-24,
+  PR #5).** Originally declined (second implementation, drift risk,
+  ~1.7-2× kernel edge on a microseconds path). Overruled by the
+  stowage perf campaign: full-window shapes (10k groups × 1M capacity)
+  made the kernel edge load-bearing. The drift risk that motivated the
+  decline is now engineered away, not assumed away: the SoA/TS and
+  Rust kernels are differential-tested (500 problems, value/weight/
+  choices/cellsVisited) in CI wherever a dylib loads, and the `Ship
+  Native` workflow rebuilds all five triples on native runners with a
+  pinned rustc, verifying every committed binary byte-for-byte plus a
+  source-hash staleness gate (review round 4 M5). Loader:
+  `native/prebuilt/` + lazy `bun:ffi`; fallback to the TS kernel is
+  output-identical.
+- **D3. Default pre-flight greedy fallback — declined AS DEFAULT;
+  shipped opt-in as `reliefMode: "bounded"` (2026-08-24).** The
+  library's identity stays exactness-by-default; bounded mode is the
+  caller's explicit policy choice above budget: certified greedy
+  incumbent, honest `[greedyLower, lpUpper]` bracket, status
+  "bounded" — never "optimal" (contract tests: test/bounded.test.ts).
 
 ## Goal 2 — Product readiness
 
@@ -237,6 +246,14 @@ Hard "no" pending a contract change from the owner:
 
 ## Changelog
 
+- 2026-08-29 (review round 4): D2 marked superseded — the native kernel
+  shipped in PR #5 and the Ship Native workflow now owns its build and
+  verification; D3's bounded relief recorded as the shipped opt-in
+  (`reliefMode: "bounded"`). Round-4 fixes landed: bounded-mode frontier
+  contract, FUZZ_SEEDS-proportional battery thresholds, lazy `bun:ffi`
+  (runtime portability), raw-ABI Rust guards, perf-gate/surface-checker
+  hardening, README/AGENTS truth pass, @types/bun pinned to the CI
+  runtime line (1.3.14).
 - 2026-08-23: ADR-0001 accepted (context rot as consumer-side disutility
   over the solver frontier); ledger gains I3 (frontier exposure) and
   R2–R4 (cache-prefix DP, per-zone frontiers, cross-turn DP as the

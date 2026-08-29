@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format is
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 semver. The v0.1.1 entry is seeded from its tag annotation.
 
+## [0.3.0] — 2026-08-24
+
+> Reconciled by hand 2026-08-29 (review round 4): the 0.3.0 version
+> bump and `v0.3.0` tag landed outside a Release Please PR, so this
+> section was never generated; no package was published for 0.3.0
+> (GitHub Packages shows nothing between 0.2.0-era tags and now). The
+> content below covers v0.2.0..v0.3.0 (PR #7, the stowage port) so the
+> ledger has no hole; Release Please owns everything from 0.3.0 on.
+
+### Added
+- **Native SIMD DP kernel (Rust cdylib, `native/`)** — the default
+  `dpKernel` where a prebuilt dylib loads (Bun hosts), with automatic,
+  output-identical fallback to the TypeScript SoA kernel. Prebuilts
+  for five triples ship in `native/prebuilt/` (aarch64/x86_64 Apple,
+  aarch64/x86_64 Linux, x86_64 Windows) with a PROVENANCE ledger.
+  `stats.dpKernelUsed` reports the serving path ("native" | "soa" |
+  "reference" | "none"); `dpKernel` selects explicitly.
+- **SoA kernel (`src/dp-soa.ts`)** — flat typed-array option data,
+  differential-proven against the reference DP.
+- **`reliefMode: "bounded"`** — opt-in bounded relief above the DP
+  memory budget: certified greedy incumbent, honest
+  `[greedyLower, lpUpper]` bracket, status "bounded" (never "optimal").
+- **Scale filter** — options with `weight > capacity` are dropped
+  exactly before the DP, closing the i32-truncation class for the SoA
+  and native flattening paths.
+
 ## [0.2.0] — 2026-08-23
 
 ### Added
