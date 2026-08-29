@@ -155,6 +155,11 @@ export function solveRot(
     }
   }
   const resolved = solve({ ...problem, capacity: bestW }, { ...(options?.maxDpBytes !== undefined ? { maxDpBytes: options.maxDpBytes } : {}) });
+  // solveRot never sets reliefMode, so "bounded" is unreachable here; the
+  // guard keeps RotResult's narrow status contract honest at the type level.
+  if (resolved.status === "bounded") {
+    throw new Error("solveRot: unreachable bounded status");
+  }
   return {
     status: resolved.status,
     value: resolved.value,

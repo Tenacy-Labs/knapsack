@@ -3,7 +3,7 @@ import {
   solve,
   type KnapsackProblem,
   type KnapsackResult,
-} from "@connectotron/knapsack";
+} from "@tenacy-labs/knapsack";
 
 /**
  * Integration coverage deliberately imports the package by its public name.
@@ -78,6 +78,7 @@ describe("public package pipeline", () => {
         optionsAfterFathoming: 7,
         dpRequired: true,
         dpCellsVisited: 90,
+        dpKernelUsed: expect.any(String),
       },
     });
   });

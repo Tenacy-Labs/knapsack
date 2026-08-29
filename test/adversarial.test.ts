@@ -230,6 +230,7 @@ describe("solve — infeasible result contract (regression)", () => {
       optionsAfterFathoming: 1,
       dpRequired: false,
       dpCellsVisited: 0,
+      dpKernelUsed: "none",
     });
   });
 });
