@@ -17,8 +17,6 @@ import { maxProfitOf, minWeightOf } from "./dominance.ts";
  * decision; the only float produced is the reported upper bound.
  */
 export interface LpSolution {
-  /** Best integral profit found by the greedy walk (valid lower bound). */
-  readonly zValue: number;
   /** Dantzig upper bound (may be fractional; never used for decisions). */
   readonly upperBound: number;
   /** Greedy integral incumbent value (valid lower bound). */
@@ -162,7 +160,6 @@ export function solveLp(
   const maxProfitSum = reduced.reduce((s, g) => s + maxProfitOf(g), 0);
   if (minWeightSum > capacity) {
     return {
-      zValue: 0,
       upperBound: 0,
       lowerBound: 0,
       breakGradient: { p: 0, w: 1 },
@@ -175,7 +172,6 @@ export function solveLp(
   }
   const walk = greedyWalk(reduced, capacity);
   return {
-    zValue: walk.lowerBound,
     upperBound: walk.break.upperBound,
     lowerBound: walk.lowerBound,
     breakGradient: walk.break.gradient,

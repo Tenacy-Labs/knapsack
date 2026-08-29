@@ -42,9 +42,12 @@ export interface KnapsackStats {
   readonly optionsTotal: number;
   readonly optionsAfterDominance: number;
   readonly optionsAfterFathoming: number;
-  /** True when the exact DP ran (LP gap was non-zero). */
+  /** True when the exact DP ran (a fractional LP break remained after
+   *  hull reduction — the certificate path alone could not close it). */
   readonly dpRequired: boolean;
-  /** Inner-loop iterations executed by the DP (0 when skipped). */
+  /** DP inner-loop iterations executed (sweep cells plus per-option
+   *  seeding scans — the two kernels' shared accounting, mirrored by the
+   *  native kernel's JS-side pre-pass; 0 when no DP ran). */
   readonly dpCellsVisited: number;
   /**
    * Which DP kernel actually produced the result (2026-08-24, PR #5):

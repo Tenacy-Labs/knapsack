@@ -36,6 +36,10 @@ export const MAX_OPTIONS_PER_GROUP = 255;
 export const MAX_EXACT_PRODUCT = 2 ** 53;
 
 function isNonNegInt(n: number): boolean {
+  // -0 is deliberately accepted: numerically -0 === 0 and every
+  // downstream consumer (Int32Array rows, window arithmetic) coerces it
+  // to +0, so rejecting it would be a validation-behavior change with
+  // zero exactness benefit (round-3 review ruling, pinned by test).
   return Number.isInteger(n) && n >= 0;
 }
 
@@ -135,9 +139,4 @@ function validateGroupOptions(g: KnapsackGroup): void {
       );
     }
   }
-}
-
-/** True when at least one feasible selection exists (min-weight hull fits). */
-export function isFeasible(minWeightSum: number, capacity: number): boolean {
-  return minWeightSum <= capacity;
 }
