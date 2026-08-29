@@ -11,10 +11,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # Write is only exercised by the baseline auto-push on main;
-    # fork PRs receive a read-only token regardless.
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -32,21 +28,32 @@ jobs:
       - name: Benchmark
         run: bun run bench --json=bench.json | tee bench-output.txt
       # Perf gate (Q1): fail the PR when median per-solve time regresses
-      # more than 20% against the main-branch baseline (auto-pushed to
-      # gh-pages by the run below on main pushes).
+      # more than 20% against the main-branch baseline (maintained on
+      # gh-pages by the bench-baseline job on main pushes). Read-only.
       - name: Perf gate (20% regression threshold)
-        uses: rhysd/action-benchmark@v1
-        with:
-          tool: "customSmallerIsBetter"
-          output-file-path: bench.json
-          alert-threshold: "120%"
-          fail-on-alert: true
-          comment-on-alert: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          # Main pushes update the baseline; PRs compare against it.
-          auto-push: ${{ github.ref == 'refs/heads/main' }}
+        run: bun run scripts/perf-gate.ts --check
       - name: Upload bench artifact
         uses: actions/upload-artifact@v4
         with:
           name: bench-${{ github.sha }}
           path: bench-output.txt
+
+  # Main pushes store the new perf baseline (needs contents: write,
+  # so it lives in its own main-only job; PR runs stay read-only).
+  bench-baseline:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned to match the test job.
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run bench --json=bench.json > /dev/null
+      - name: Store perf baseline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun run scripts/perf-gate.ts --update
