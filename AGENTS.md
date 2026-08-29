@@ -28,6 +28,23 @@ Plain shell in `.githooks/` — no dependency, nothing to install
 beyond git. CI runs the same gates, so skipping a hook
 (`git push --no-verify`) only moves the failure downstream.
 
+## PR gates (PR Guard workflow)
+
+PRs run anti-weakening checks beyond the test suite
+(`.github/workflows/pr-guard.yml`):
+
+- No added `.skip()`/`.only()`/`.todo()`, suppression comments
+  (`@ts-ignore`, `eslint-disable`, ...), or `console.log` in the diff.
+- No net test deletion — deleting tests is not a fix.
+- The public surface must match `api-surface.txt` exactly; surface
+  changes must update the snapshot deliberately in the same PR
+  (`bun run scripts/check-api-surface.ts --update`). P1: additive-only.
+- Automation, policy, and provenance paths (`.github/`, release-please
+  files, `AGENTS.md`, `.githooks/`, `docs/adr/`, `docs/paper.md`,
+  `docs/future-work.md`) require owner review.
+- PR titles must be Conventional Commits (`feat:`, `fix:`, ...) —
+  Release Please versions from them.
+
 ## Releases are automated — do not do these by hand
 
 - **No hand-pushed `v*` tags.** A tag push publishes to GitHub

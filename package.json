@@ -23,7 +23,8 @@
   "scripts": {
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test",
-    "bench": "bun run bench/bench.ts"
+    "bench": "bun run bench/bench.ts",
+    "check:api": "bun run scripts/check-api-surface.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.0",

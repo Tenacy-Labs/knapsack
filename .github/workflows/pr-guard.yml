@@ -1,0 +1,48 @@
+name: PR Guard
+
+# Bad-PR robustness for agent-contributed development (AGENTS.md):
+# anti-weakening diff checks, public-surface snapshot, workflow lint,
+# and semantic PR titles (Release Please feeds off them).
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # pr-guard diffs against the PR base
+      - uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned to match ci.yml.
+          bun-version: 1.3.14
+      - name: Anti-weakening + protected-path checks
+        env:
+          # Dependabot legitimately touches .github/workflows.
+          ALLOW_PROTECTED: ${{ github.actor == 'dependabot[bot]' && '1' || '0' }}
+        run: bash scripts/pr-guard.sh "${{ github.event.pull_request.base.sha }}"
+      - name: Public API surface snapshot (future-work P1)
+        run: bun run scripts/check-api-surface.ts
+      - name: Workflow lint (actionlint)
+        uses: rhysd/actionlint@v2
+      - name: Semantic PR title (Release Please depends on it)
+        if: github.actor != 'dependabot[bot]'
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            chore
+            ci
+            test
+            refactor
+            perf
+            build
+            revert
