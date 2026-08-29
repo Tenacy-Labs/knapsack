@@ -119,4 +119,39 @@ describe("solveRot (ADR-0001 convenience layer)", () => {
     expect(Object.isFrozen(r.rot)).toBe(true);
     expect(() => solveRot(readme, { rot: { kneeFraction: NaN, kneeRetention: 0.95, floorRetention: 0.5 } })).toThrow();
   });
+
+  test("validateRot rejects every out-of-domain parameter (one per rule)", () => {
+    const ok = { kneeFraction: 0.4, kneeRetention: 0.95, floorRetention: 0.5 };
+    // kneeFraction: (0, 1) exclusive on both ends.
+    expect(() => solveRot(readme, { rot: { ...ok, kneeFraction: 0 } })).toThrow(/kneeFraction/);
+    expect(() => solveRot(readme, { rot: { ...ok, kneeFraction: 1 } })).toThrow(/kneeFraction/);
+    expect(() => solveRot(readme, { rot: { ...ok, kneeFraction: -0.1 } })).toThrow(/kneeFraction/);
+    // kneeRetention: (0, 1) exclusive.
+    expect(() => solveRot(readme, { rot: { ...ok, kneeRetention: 0 } })).toThrow(/kneeRetention/);
+    expect(() => solveRot(readme, { rot: { ...ok, kneeRetention: 1 } })).toThrow(/kneeRetention/);
+    // floorRetention: (0, 1) exclusive, and <= kneeRetention.
+    expect(() => solveRot(readme, { rot: { ...ok, floorRetention: 0 } })).toThrow(/floorRetention/);
+    expect(() => solveRot(readme, { rot: { ...ok, floorRetention: 1 } })).toThrow(/floorRetention/);
+    expect(() => solveRot(readme, { rot: { ...ok, floorRetention: 0.99 } })).toThrow(/floorRetention/);
+  });
+
+  test("explicit rot params are echoed back as a frozen copy", () => {
+    const rot = { kneeFraction: 0.7, kneeRetention: 0.9, floorRetention: 0.6 };
+    const r = solveRot(readme, { rot });
+    expect(r.rot).toEqual(rot);
+    expect(Object.isFrozen(r.rot)).toBe(true);
+    // Frozen COPY: mutating the caller's object later cannot rewire results.
+    expect(r.rot).not.toBe(rot);
+  });
+
+  test("maxDpBytes passthrough reaches both internal solves", () => {
+    // A tiny budget keeps both the base frontier solve and the certified
+    // re-solve under the same ceiling; the result must be unchanged.
+    const roomy = solveRot(readme);
+    const tiny = solveRot(readme, { maxDpBytes: 1 << 20 });
+    expect(tiny.value).toBe(roomy.value);
+    expect(tiny.operatingWeight).toBe(roomy.operatingWeight);
+    expect(tiny.bounds.lpUpper).toBe(roomy.bounds.lpUpper);
+    expect(tiny.stats.groups).toBe(roomy.stats.groups);
+  });
 });

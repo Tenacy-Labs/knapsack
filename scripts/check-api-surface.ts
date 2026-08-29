@@ -20,7 +20,10 @@ const src = readFileSync(INDEX, "utf8");
 const names = new Set<string>();
 for (const m of src.matchAll(/export\s+(?:type\s+)?\{([^}]*)\}/g)) {
   for (const spec of m[1]!.split(",")) {
-    const name = spec.replace(/^type\s+/, "").trim().split(/\s+as\s+/).pop()!.trim();
+    // trim FIRST: split(',') keeps the leading whitespace of every
+    // normal spec, which used to defeat the `type ` strip and leak
+    // pseudo-names like "type DpResult" into the snapshot.
+    const name = spec.trim().replace(/^type\s+/, "").split(/\s+as\s+/).pop()!.trim();
     if (name) names.add(name);
   }
 }
@@ -39,16 +42,12 @@ let snapshot: string[] = [];
 try {
   snapshot = readFileSync(SNAPSHOT, "utf8").split("\n").filter(Boolean);
 } catch {
-  console.error(`api-surface.txt missing — run: bun run scripts/${pathlib_basename()} --update`);
+  console.error("api-surface.txt missing — run: bun run scripts/check-api-surface.ts --update");
   process.exit(1);
 }
 
 const removed = snapshot.filter((n) => !current.includes(n));
 const added = current.filter((n) => !snapshot.includes(n));
-
-function pathlib_basename(): string {
-  return "check-api-surface.ts";
-}
 
 if (removed.length || added.length) {
   if (removed.length) console.error(`BREAKING — removed from public surface:\n  ${removed.join("\n  ")}`);

@@ -19,10 +19,10 @@ got close.
 |---|---|
 | **Exact, not heuristic** | never "probably optimal" — every result is certified |
 | **Hot-loop fast** | 11 µs – 4.1 ms per solve at realistic shapes (median, measured) |
-| **Zero dependencies** | pure TypeScript; the whole tarball is 40 kB |
+| **Zero dependencies** | pure TypeScript + one optional Rust kernel; ~1.5 MB with all five prebuilt binaries |
 | **Deterministic** | same input → byte-identical output, every run, forever |
-| **Memory-bounded** | worst-case DP memory stays under `16·(C+1)` bytes at any input size |
-| **Battle-tested** | 1,251 tests; ~92,000-instance adversarial fuzz vs brute force, zero wrong answers |
+| **Memory-bounded** | DP memory capped by `maxDpBytes` (default 50 MiB); above it an O(C)-memory mode keeps peak at `16·(C+1)` bytes |
+| **Battle-tested** | 1,280 tests; ~92,000-instance adversarial fuzz vs brute force, zero wrong answers |
 
 Born from [tenacy](https://github.com/Tenacy-Labs/tenacy) (formerly
 agent-kernel)'s
@@ -32,6 +32,16 @@ structure and implementation efficiency. First consumer: tenacy;
 the library knows nothing about LLMs, tokens, or turns.
 
 ## Quick start
+
+Published to GitHub Packages (the `@tenacy-labs` scope):
+
+```sh
+npm config set @tenacy-labs:registry https://npm.pkg.github.com
+# needs a GitHub token with read:packages in ~/.npmrc or the env
+npm install @tenacy-labs/knapsack      # or: bun add @tenacy-labs/knapsack
+```
+
+Public-repo consumers without registry auth can also pin the git URL:
 
 ```sh
 bun add github:Tenacy-Labs/knapsack
@@ -74,9 +84,10 @@ result.frontier; // [{ weight: 0, value: 0 }, ... ] — ADR-0001 Pareto kinks of
                  //   consumer (not the solver) can price context rot
                  //   U(w) = ρ(w)·P*(w) + H(C−w)
 ```
-
-Ships as TypeScript source (no build step under Bun; trivially
-compilable with `tsc` for any runtime).
+Ships as TypeScript source: no build step under Bun; `tsc`-compilable
+for any runtime. The native kernel loads only under Bun (`bun:ffi` is
+resolved lazily at load time); every other runtime transparently runs
+the TypeScript kernel with identical outputs.
 
 ## What a problem looks like
 
@@ -287,11 +298,14 @@ Peak DP allocation is predictable at solve time:
 `expectedDpBytes(n, C) = n·(C+1) + 8·(C+1)` bytes in back-pointer mode
 (u8 table). This formula is pinned by test (exact-change detector); the
 budget dispatch it feeds is covered through the public `solve()` entry
-(`test/adversarial.test.ts`). Above a configurable budget (default
-50 MiB) the solver automatically uses the O(C)-memory divide-and-conquer
-traceback — exact, deterministic, ≤ 2× time — so worst-case memory stays
-under `16·(C+1) + ε` bytes no matter how many groups the caller brings.
-
+(`test/adversarial.test.ts`). Two regimes: under the budget
+(default 50 MiB), back-pointer mode uses exactly
+`expectedDpBytes(n, C)` bytes; above it, the solver automatically uses
+the O(C)-memory divide-and-conquer traceback — exact, deterministic,
+≤ 2× time — so worst-case memory stays under `16·(C+1)` bytes no
+matter how many groups the caller brings. `SolveOptions.maxDpBytes`
+tunes the dispatch line; `reliefMode: "bounded"` swaps the over-budget
+DP for the certified greedy incumbent with honest bounds instead.
 Determinism: no locale collation, no float ordering, no unordered
 iteration in any decision path. Same input, byte-identical output, every
 run.
@@ -306,7 +320,7 @@ per-solve:
 | 20 groups × 3 options, w≤400 | 61 µs | 51% |
 | 60 groups × 5 options, w≤600 | 91 µs | 3% |
 | 120 groups × 6 options, w≤800 | 4.1 ms | 52% |
-| 40 groups × 4 options, cap 8k (wide) | 706 µs | 26% |
+| 40 groups × 4 options, cap ≈42k (wide) | 706 µs | 26% |
 | 30 groups × 3 options, roomy capacity | 11 µs | 0% |
 
 Correctness gate: every release is cross-checked against exhaustive
@@ -319,26 +333,31 @@ determinism) plus a 300-seed uniform battery, all committed in
 ## Native kernel
 
 `solve()` prefers a compiled SIMD kernel (Rust cdylib, `native/`) when a
-prebuilt dylib for the host triple exists — `aarch64-apple-darwin` ships
-in-tree under `native/prebuilt/`; other triples build from source with
-`cargo build --release` (baseline vector widths: NEON on aarch64,
-SSE2-class on x86_64 — no AVX assumptions). If the dylib is absent or
-fails to load, the TypeScript SoA kernel serves the answer with
-identical outputs (differential-proven: 500 problems, value/weight/
-choices/cellsVisited). `stats.dpKernelUsed` reports which path ran
+prebuilt library for the host triple exists. All five triples ship
+in-tree under `native/prebuilt/` (aarch64/x86_64 Apple, aarch64/x86_64
+Linux, x86_64 Windows), built by the `Ship Native` GitHub workflow on
+native runners with a pinned rustc — the workflow gates every PR with
+native changes on the committed binaries matching the recorded
+PROVENANCE hashes and a source-hash staleness check, and runs the Bun
+differential against the fresh build (baseline
+vector widths: NEON on aarch64, SSE2-class on x86_64 — no AVX
+assumptions). If the dylib is absent, unloadable, or the runtime is not
+Bun, the TypeScript SoA kernel serves the answer with identical outputs
+(differential-proven: 500 problems, value/weight/choices/cellsVisited).
+`stats.dpKernelUsed` reports which path ran
 ("native" | "soa" | "reference" | "none"). `dpKernel: "reference"`
 opts out; `dpKernel: "soa"` pins the TypeScript path explicitly.
 `KNAPSACK_NATIVE_DYLIB` overrides the dylib path (testing).
 
-Provenance for prebuilt dylibs (toolchain, sha256, rebuild recipe):
-`native/prebuilt/PROVENANCE.md`.
+Provenance for prebuilt binaries (toolchain, sha256, source hash —
+regenerated by the same workflow): `native/prebuilt/PROVENANCE.md`.
 
 ## Development
 
 ```sh
 bun install
 bun run typecheck   # bunx tsc --noEmit, strictest flags
-bun test            # 1,251 tests incl. the 600-seed adversarial cross-check
+bun test            # 1,280 tests incl. the 600-seed adversarial cross-check
 bun run bench       # the numbers above
 ```
 

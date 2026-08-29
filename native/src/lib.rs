@@ -111,12 +111,14 @@ unsafe fn knapsack_dp_inner(
     // in depth. Weights must be non-negative (a negative would sign-extend
     // to a huge usize index in the g0-seed/gather paths); profits
     // non-negative (oracle semantics: best scan initializes at -1);
-    // group_start strictly increasing from 0. rc -3 -> loader falls back.
+    // group_start STRICTLY increasing from 0 — equal neighbors mean an
+    // empty group, which poisons the window arithmetic (min/max become
+    // i32::MAX/MIN and the sweep wraps). rc -3 -> loader falls back.
     if gs[0] != 0 {
         return -3;
     }
     for i in 1..=n {
-        if gs[i] < gs[i - 1] {
+        if gs[i] <= gs[i - 1] {
             return -3;
         }
     }
@@ -129,20 +131,44 @@ unsafe fn knapsack_dp_inner(
     let mut prev: Vec<i32> = vec![SENT; width];
     let mut cur: Vec<i32> = vec![SENT; width];
     let mut bp: Vec<u8> = vec![0u8; n * width];
-
     // Per-group min/max option weights (SoA phase 0), same as dp-soa.ts.
+    // Per-group max profit/weight also accumulate in i64 (review round 4):
+    // every i32 addition below — profit sums along a DP path, and the
+    // window arithmetic (accumulator + one group weight, cap + one group
+    // weight) — must be provably overflow-free. The TS loader guarantees
+    // both invariants upstream (validateProblem caps sum-of-max-profits
+    // < 2^31; the scale filter caps every weight by capacity and the
+    // budget gate then bounds n·cap); these guards close the same class
+    // for direct C callers. rc -3.
     let mut group_min: Vec<i32> = vec![0; n];
     let mut group_max: Vec<i32> = vec![0; n];
+    let mut sum_pmax: i64 = 0;
+    let mut sum_wmax: i64 = 0;
     for gi in 0..n {
         let mut mn = i32::MAX;
         let mut mx = i32::MIN;
+        let mut pmx: i32 = 0;
         for i in gs[gi]..gs[gi + 1] {
             let w = flat_w[i as usize];
             if w < mn { mn = w; }
             if w > mx { mx = w; }
+            let p = flat_p[i as usize];
+            if p > pmx { pmx = p; }
         }
         group_min[gi] = mn;
         group_max[gi] = mx;
+        sum_pmax += pmx as i64;
+        sum_wmax += mx as i64;
+    }
+    if sum_pmax >= i32::MAX as i64 {
+        return -3; // a path profit sum could wrap negative in the i32 rows
+    }
+    // Window adds take two forms, both dominated by 2·sum_wmax (the
+    // accumulator is ≤ Σ per-group min weight ≤ sum_wmax; the addend is
+    // one group weight ≤ sum_wmax; the cap addend is post-budget-gate
+    // < 2^26). One guard with headroom for both.
+    if sum_wmax > (i32::MAX as i64 - cap as i64) / 2 {
+        return -3; // window_lo/window_hi adds could wrap in the i32 sweep
     }
 
     // g0 seeding (first writer wins, options in index order).
@@ -209,4 +235,55 @@ unsafe fn knapsack_dp_inner(
         for gi in 0..n { *out_choices.add(gi) = choices[gi]; }
     }
     0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn call(flat_w: &[i32], flat_p: &[i32], gs: &[i32], cap: i32) -> (i32, Vec<i32>, Vec<i32>) {
+        let n = (gs.len() - 1) as i32;
+        let mut out = vec![0i32; 2];
+        let mut choices = vec![-1i32; n as usize];
+        let rc = knapsack_dp(
+            flat_w.as_ptr(), flat_p.as_ptr(), gs.as_ptr(),
+            n, cap, out.as_mut_ptr(), choices.as_mut_ptr(),
+        );
+        (rc, out, choices)
+    }
+
+    #[test]
+    fn sanity_known_answer() {
+        // g0 {w1p1, w2p3}, g1 {w3p4, w1p2, w2p3}, cap 10: best is b+a = 7.
+        let (rc, out, ch) = call(&[1, 2, 3, 1, 2], &[1, 3, 4, 2, 3], &[0, 2, 5], 10);
+        assert_eq!(rc, 0);
+        assert_eq!(out[0], 7);
+        assert_eq!(ch, vec![1, 0]);
+    }
+
+    #[test]
+    fn empty_group_rejected() {
+        let (rc, _, _) = call(&[1], &[1], &[0, 0, 1], 5);
+        assert_eq!(rc, -3);
+    }
+
+    #[test]
+    fn profit_path_sum_overflow_rejected() {
+        // Per-group max profits sum past i32::MAX: i32 row adds could wrap.
+        let (rc, _, _) = call(&[0, 0], &[1_500_000_000, 1_500_000_000], &[0, 1, 2], 5);
+        assert_eq!(rc, -3);
+    }
+
+    #[test]
+    fn window_overflow_rejected() {
+        // Weight sums large enough that the window adds could wrap.
+        let (rc, _, _) = call(&[1_500_000_000, 1_500_000_000], &[1, 1], &[0, 1, 2], 5);
+        assert_eq!(rc, -3);
+    }
+
+    #[test]
+    fn infeasible_under_cap() {
+        let (rc, _, _) = call(&[10], &[5], &[0, 1], 5);
+        assert_eq!(rc, -2);
+    }
 }

@@ -58,6 +58,41 @@ describe("validation", () => {
     ).toThrow(/at least one option/);
   });
 
+  test("rejects empty and non-string group ids", () => {
+    expect(() =>
+      validateProblem(ok({ groups: [{ id: "", options: [{ id: "a", weight: 1, profit: 1 }] }] })),
+    ).toThrow(/non-empty string id/);
+    expect(() =>
+      validateProblem(ok({ groups: [{ id: 42 as unknown as string, options: [{ id: "a", weight: 1, profit: 1 }] }] })),
+    ).toThrow(/non-empty string id/);
+  });
+
+  test("rejects empty and non-string option ids", () => {
+    expect(() =>
+      validateProblem(ok({ groups: [{ id: "g", options: [{ id: "", weight: 1, profit: 1 }] }] })),
+    ).toThrow(/invalid id/);
+    expect(() =>
+      validateProblem(ok({ groups: [{ id: "g", options: [{ id: 7 as unknown as string, weight: 1, profit: 1 }] }] })),
+    ).toThrow(/invalid id/);
+  });
+
+  test("rejects fractional profit (fractional weight already covered)", () => {
+    expect(() =>
+      validateProblem(ok({ groups: [{ id: "g", options: [{ id: "a", weight: 1, profit: 1.5 }] }] })),
+    ).toThrow(/profit must be a non-negative integer/);
+  });
+
+  test("-0 weight/profit accepted by ruling: coerces to +0 downstream", () => {
+    // Round-3 ruling, pinned: -0 === 0 numerically and every consumer
+    // (Int32Array rows, window arithmetic) coerces to +0 — rejecting it
+    // would change validation behavior for zero exactness benefit.
+    const p = ok({ groups: [{ id: "g", options: [{ id: "a", weight: -0, profit: -0 }] }] });
+    expect(() => validateProblem(p)).not.toThrow();
+    const r = solve(p);
+    expect(r.value).toBe(0);
+    expect(r.choices).toEqual([{ groupId: "g", optionId: "a" }]);
+  });
+
   test("accepts exactly 255 options per group (u8 back-pointer cap)", () => {
     const options = Array.from({ length: 255 }, (_, i) => ({
       id: `o${i}`,

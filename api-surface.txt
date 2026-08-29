@@ -1,5 +1,6 @@
 DEFAULT_DP_BUDGET
 DEFAULT_ROT
+DpResult
 FrontierPoint
 KnapsackBounds
 KnapsackChoice
@@ -10,13 +11,12 @@ KnapsackResult
 KnapsackStats
 KnapsackValidationError
 ReducedGroup
+RotParams
+RotSolveOptions
+RotSolveResult
+SolveOptions
 computeFrontier
 expectedDpBytes
 solve
 solveRot
-type DpResult
-type RotParams
-type RotSolveOptions
-type RotSolveResult
-type SolveOptions
 validateProblem

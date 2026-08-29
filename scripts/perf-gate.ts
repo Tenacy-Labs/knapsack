@@ -20,7 +20,7 @@ import { readFileSync, existsSync } from "node:fs";
 const REPO = "Tenacy-Labs/knapsack";
 const BRANCH = "gh-pages";
 const FILE = "bench-baseline.json";
-const THRESHOLD = 1.2; // 20% regression budget
+const REGRESSION_PCT = 20; // regression budget — the gate's one knob
 const HISTORY = 5;
 
 type Entry = { name: string; unit: string; value: number };
@@ -50,7 +50,9 @@ function parseBaseline(text: string): Baseline {
 }
 
 // Current capability: min across every bench run present (bench.json
-// required; bench2.json merged in when CI ran a second pass).
+// required; bench2.json merged in when CI ran a second pass). Runs are
+// merged BY SHAPE NAME — a shape-list drift between the two passes is a
+// harness bug, not something to crash on with an undefined index.
 function currentRuns(): { name: string; unit: string; value: number }[] {
   const files = ["bench.json", "bench2.json"].filter(existsSync);
   if (!files.length) {
@@ -58,23 +60,48 @@ function currentRuns(): { name: string; unit: string; value: number }[] {
     process.exit(1);
   }
   const runs = files.map((f) => JSON.parse(readFileSync(f, "utf8")) as Entry[]);
-  const names = runs[0]!.map((e) => e.name);
-  return names.map((name, i) => ({
+  const byName = new Map<string, { unit: string; values: number[] }>();
+  for (const run of runs) {
+    for (const e of run) {
+      const slot = byName.get(e.name);
+      if (slot) {
+        if (slot.unit !== e.unit) {
+          console.error(`perf-gate: shape ${JSON.stringify(e.name)} changed units between runs (${slot.unit} vs ${e.unit}) — recalibrate the bench`);
+          process.exit(1);
+        }
+        slot.values.push(e.value);
+      } else {
+        byName.set(e.name, { unit: e.unit, values: [e.value] });
+      }
+    }
+  }
+  return [...byName.entries()].map(([name, { unit, values }]) => ({
     name,
-    unit: runs[0]![i]!.unit,
-    value: Math.min(...runs.map((r) => r[i]!.value)),
+    unit,
+    value: Math.min(...values),
   }));
 }
 
 if (mode === "--check") {
   const current = currentRuns();
   let baselineText: string | null = null;
+  let fetchFailed = false;
   if (baselineFileArg) {
     baselineText = readFileSync(baselineFileArg, "utf8");
-  } else if (sh("git", ["fetch", "origin", BRANCH, "--depth=1"]).status === 0) {
-    const show = sh("git", ["show", `FETCH_HEAD:${FILE}`]);
-    if (show.status === 0) baselineText = show.stdout;
+  } else {
+    const fetch = sh("git", ["fetch", "origin", BRANCH, "--depth=1"]);
+    if (fetch.status !== 0) {
+      // A network/permission failure must not masquerade as "no
+      // baseline yet" — that makes the gate silently vacuous on any
+      // fetch flake (review round 4).
+      fetchFailed = true;
+      console.error(`perf-gate: baseline fetch failed:\n${fetch.stderr.trim()}`);
+    } else {
+      const show = sh("git", ["show", `FETCH_HEAD:${FILE}`]);
+      if (show.status === 0) baselineText = show.stdout;
+    }
   }
+  if (fetchFailed) process.exit(1);
   if (!baselineText) {
     console.log("perf-gate: no baseline yet — gate passes vacuously (first main run stores one)");
     process.exit(0);
@@ -87,17 +114,24 @@ if (mode === "--check") {
       console.log(`  ~ ${c.name}: no baseline entry (new shape)`);
       continue;
     }
+    if (h.unit !== c.unit) {
+      // Incommensurable numbers: a bench calibration change slipped in
+      // without refreshing the baseline.
+      console.error(`  ✗ ${c.name}: unit changed (baseline ${h.unit}, current ${c.unit}) — refresh the baseline on main`);
+      failed = true;
+      continue;
+    }
     const base = median(h.values);
     const delta = (c.value / base - 1) * 100;
-    const verdict = delta > 20 ? "REGRESSION" : delta < -20 ? "improved" : "ok";
-    console.log(`  ${delta > 20 ? "✗" : "✓"} ${c.name}: ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% vs baseline median (of ${h.values.length} runs) — ${verdict}`);
-    if (delta > 20) failed = true;
+    const verdict = delta > REGRESSION_PCT ? "REGRESSION" : delta < -REGRESSION_PCT ? "improved" : "ok";
+    console.log(`  ${delta > REGRESSION_PCT ? "✗" : "✓"} ${c.name}: ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% vs baseline median (of ${h.values.length} runs) — ${verdict}`);
+    if (delta > REGRESSION_PCT) failed = true;
   }
   if (failed) {
-    console.error("\nperf-gate FAIL: >20% regression on one or more shapes (min of 2 runs vs baseline median).\nIf a re-run still fails, the regression is real: say so in the PR, or fix it.");
+    console.error(`\nperf-gate FAIL: >${REGRESSION_PCT}% regression on one or more shapes (min of 2 runs vs baseline median).\nIf a re-run still fails, the regression is real: say so in the PR, or fix it.`);
     process.exit(1);
   }
-  console.log("perf-gate: OK (all shapes within 20% of baseline median)");
+  console.log(`perf-gate: OK (all shapes within ${REGRESSION_PCT}% of baseline median)`);
   process.exit(0);
 }
 

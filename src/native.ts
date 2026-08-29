@@ -5,12 +5,35 @@
 // SoA kernel. Correctness is identical either way — the native kernel is
 // differential-tested against solveDpSoa (value, weight, choices, AND
 // cellsVisited) wherever a dylib is present.
-import { dlopen } from "bun:ffi";
 import type { ReducedGroup } from "./types.ts";
-import { expectedDpBytes, type DpResult } from "./dp.ts";
+import { DEFAULT_DP_BUDGET, expectedDpBytes, type DpResult } from "./dp.ts";
 
-// Keep in sync with native/src/lib.rs DEFAULT_DP_BUDGET and dp.ts.
-import { DEFAULT_DP_BUDGET } from "./dp.ts";
+// bun:ffi is resolved LAZILY (review round 4, M4): a static import makes
+// the whole package Bun-only at module-resolution time — Node or any
+// tsc-compiled consumer fails importing `bun:ffi` before ever reaching
+// the fallback. Resolved inside tryLoad, those hosts load this module
+// and run on the TypeScript kernel instead.
+type DlopenFn = (
+  path: string,
+  defs: Record<string, { args: string[]; returns: string }>,
+) => { symbols: Record<string, unknown> };
+
+/**
+ * Lazy bun:ffi boundary: null on any non-Bun runtime or failed resolve.
+ * `import.meta.require` is Bun's synchronous ESM require; Node leaves it
+ * undefined, so the guard itself is the runtime check.
+ */
+function loadDlopen(): DlopenFn | null {
+  const meta = import.meta as ImportMeta & { require?: (id: string) => unknown };
+  if (typeof meta.require !== "function") return null;
+  try {
+    // bun:ffi's dlopen, untyped through the require boundary.
+    const ffi = meta.require("bun:ffi") as { dlopen?: unknown };
+    return typeof ffi.dlopen === "function" ? (ffi.dlopen as DlopenFn) : null;
+  } catch {
+    return null;
+  }
+}
 
 type NativeFn = (
   flatW: Int32Array, flatP: Int32Array, groupStart: Int32Array,
@@ -48,6 +71,8 @@ function triple(): TripleExt | null {
 function tryLoad(): NativeLib | null {
   if (cached !== undefined) return cached;
   cached = null;
+  const dlopen = loadDlopen();
+  if (dlopen === null) return cached; // non-Bun runtime: TS kernel only
   try {
     const override = process.env.KNAPSACK_NATIVE_DYLIB;
     const t = override !== undefined && override !== "" ? null : triple();

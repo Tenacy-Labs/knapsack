@@ -44,11 +44,12 @@ function reducedProblem(
 describe("native SIMD kernel (spike 003 productionized)", () => {
   test("differential: native agrees with soa on value/weight/choices/cells (500 problems)", () => {
     if (!nativeAvailable()) {
-      console.log("no dylib on this host -> differential skipped");
+      // Honest skip: absence is asserted by the forced-absent tests below.
       return;
     }
     let mismatches = 0;
     let ran = 0;
+    let firstMismatch = "";
     for (let i = 0; i < 500; i++) {
       const nG = 5 + (i % 60);
       const cap = 200 + (i * 37) % 3000;
@@ -64,27 +65,40 @@ describe("native SIMD kernel (spike 003 productionized)", () => {
         soa.cellsVisited !== nat.cellsVisited
       ) {
         mismatches++;
-        if (mismatches <= 3) {
-          console.log("MISMATCH seed", 1234 + i, "soa", soa.value, soa.weight, "nat", nat.value, nat.weight);
+        if (!firstMismatch) {
+          firstMismatch = `seed ${1234 + i}: soa(v=${soa.value}, w=${soa.weight}) vs nat(v=${nat.value}, w=${nat.weight})`;
         }
       }
     }
-    expect(ran).toBeGreaterThan(0);
-    console.log("differential ran", ran, "of 500 problems; mismatches", mismatches);
+    // Floor: a regression that makes the loader/kernel return null for
+    // most inputs (budget-gate inversion, rc!=0 sweep) must not shrink
+    // this differential to a token run and still pass (review round 4).
+    expect(ran).toBeGreaterThanOrEqual(450);
     expect(mismatches).toBe(0);
+    if (mismatches > 0) throw new Error(`native/soa differential mismatch — first: ${firstMismatch}`);
   }, 60_000);
 
   test("fallback: dpKernel native falls back to soa when dylib is absent", () => {
-    const groups = reducedProblem(12, 400, 777, 6, 10);
-    const viaSolve = solve(
-      { groups: groups as never, capacity: 400 },
-      { dpKernel: "native" } as never,
-    );
-    const soa = solveDpSoa(groups, 400);
-    const soaIds = soa.choiceIndex.map((ci, gi) => groups[gi]!.options[ci]!.id);
-    expect(viaSolve.status).toBe("optimal");
-    expect(viaSolve.value).toBe(soa.value);
-    expect(JSON.stringify(viaSolve.choices?.map((c) => c.optionId))).toBe(JSON.stringify(soaIds));
+    // Force absence (review round 4): without this the test silently
+    // degrades to a duplicate differential on every dylib host.
+    process.env.KNAPSACK_NATIVE_DYLIB = "/nonexistent/libknapsack_native.dylib";
+    _resetNativeCache();
+    try {
+      expect(nativeAvailable()).toBe(false);
+      const groups = reducedProblem(12, 400, 777, 6, 10);
+      const viaSolve = solve(
+        { groups: groups as never, capacity: 400 },
+        { dpKernel: "native" } as never,
+      );
+      const soa = solveDpSoa(groups, 400);
+      const soaIds = soa.choiceIndex.map((ci, gi) => groups[gi]!.options[ci]!.id);
+      expect(viaSolve.status).toBe("optimal");
+      expect(viaSolve.value).toBe(soa.value);
+      expect(JSON.stringify(viaSolve.choices?.map((c) => c.optionId))).toBe(JSON.stringify(soaIds));
+    } finally {
+      delete process.env.KNAPSACK_NATIVE_DYLIB;
+      _resetNativeCache();
+    }
   });
 
   test("fallback honesty: corrupt dylib path -> null loader -> soa-identical solve", () => {
@@ -205,8 +219,7 @@ describe("default dpKernel policy (PR #5)", () => {
 
   test("forced-absent dylib: default solve() falls back to soa with identical outputs", () => {
     const problem = dpRequiredProblem(2);
-    const env = { ...process.env, KNAPSACK_NATIVE_DYLIB: "/nonexistent/knapsack.dylib" };
-    process.env = env as Record<string, string>;
+    process.env.KNAPSACK_NATIVE_DYLIB = "/nonexistent/knapsack.dylib";
     _resetNativeCache();
     try {
       const r = solve(problem);
@@ -220,6 +233,17 @@ describe("default dpKernel policy (PR #5)", () => {
     }
   });
 
+
+  test("explicit dpKernel soa: dispatch branch honored, outputs match reference", () => {
+    // The wantKernel === "soa" branch (solve.ts) was unreachable by the
+    // suite before this (review round 4 coverage gap).
+    const problem = dpRequiredProblem(7);
+    const r = solve(problem, { dpKernel: "soa" });
+    const ref = solve(problem, { dpKernel: "reference" });
+    expect(r.stats.dpKernelUsed).toBe("soa");
+    expect(r.value).toBe(ref.value);
+    expect(JSON.stringify(r.choices)).toBe(JSON.stringify(ref.choices));
+  });
   test("explicit reference opt-out unchanged", () => {
     const problem = dpRequiredProblem(3);
     const r = solve(problem, { dpKernel: "reference" });
