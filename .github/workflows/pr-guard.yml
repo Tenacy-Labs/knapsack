@@ -28,10 +28,10 @@ jobs:
       - name: Public API surface snapshot (future-work P1)
         run: bun run scripts/check-api-surface.ts
       - name: Workflow lint (actionlint)
-        uses: rhysd/actionlint@v2
+        uses: rhysd/actionlint@v1
       - name: Semantic PR title (Release Please depends on it)
         if: github.actor != 'dependabot[bot]'
-        uses: amannn/action-semantic-pull-request@v5
+        uses: amannn/action-semantic-pull-request@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
