@@ -30,7 +30,10 @@ jobs:
       # Perf gate (Q1): fail the PR when median per-solve time regresses
       # more than 20% against the main-branch baseline (maintained on
       # gh-pages by the bench-baseline job on main pushes). Read-only.
+      # PRs only: comparing two different main runners is machine noise
+      # (observed ±30-47% across regions on identical code), not signal.
       - name: Perf gate (20% regression threshold)
+        if: github.event_name == 'pull_request'
         run: bun run scripts/perf-gate.ts --check
       - name: Upload bench artifact
         uses: actions/upload-artifact@v4
@@ -42,6 +45,7 @@ jobs:
   # so it lives in its own main-only job; PR runs stay read-only).
   bench-baseline:
     if: github.ref == 'refs/heads/main'
+    needs: [test] # baseline only refreshes after a green suite
     runs-on: ubuntu-latest
     permissions:
       contents: write
