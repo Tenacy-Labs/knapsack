@@ -358,3 +358,5 @@ bun run bench       # the numbers above
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+<!-- sentinel-probe: CI wiring verification, safe to close -->
