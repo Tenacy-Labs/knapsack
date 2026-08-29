@@ -120,7 +120,7 @@ export function solve(
     const choices = extractChoices(hulls, walk.state.indices);
     return {
       status: "optimal",
-      value: lp.zValue,
+      value: lp.lowerBound,
       choices,
       bounds: { lpUpper: lp.upperBound, greedyLower: lp.lowerBound },
       stats: {
@@ -223,6 +223,12 @@ export function solve(
         dpCellsVisited: 0,
         dpKernelUsed: "none",
       },
+      // ADR-0001 contract (types.ts): frontier is present iff requested —
+      // the bounded early return is no exception; the standalone sweep is
+      // budget-independent (review round 4, M1).
+      ...(options.frontier
+        ? { frontier: computeFrontier(pareto, problem.capacity) }
+        : {}),
     };
   }
   // Kernel dispatch (2026-08-24): native SIMD when requested and its
