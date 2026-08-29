@@ -14,6 +14,20 @@ you too.
 CI pins bun 1.3.14. Bench baselines and paper §7.2 measurements are
 taken on that version; drifting it changes numbers silently.
 
+## Git hooks — one-time setup after cloning
+
+    git config core.hooksPath .githooks
+
+- `pre-commit` runs the static type check (`bun run typecheck`). A
+  commit with type errors is blocked.
+- `pre-push` runs the frozen install plus the full unit and
+  integration suite (`bun test`), mirroring CI. A push with failures
+  is blocked.
+
+Plain shell in `.githooks/` — no dependency, nothing to install
+beyond git. CI runs the same gates, so skipping a hook
+(`git push --no-verify`) only moves the failure downstream.
+
 ## Releases are automated — do not do these by hand
 
 - **No hand-pushed `v*` tags.** A tag push publishes to GitHub

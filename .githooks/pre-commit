@@ -1,0 +1,7 @@
+#!/bin/sh
+# Static type-check gate (AGENTS.md "Git hooks"). A commit with type
+# errors is blocked, not carried.
+bun run typecheck || {
+  echo "pre-commit: typecheck failed — fix types before committing" >&2
+  exit 1
+}

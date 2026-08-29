@@ -1,0 +1,11 @@
+#!/bin/sh
+# Unit + integration gate (AGENTS.md "Git hooks"): frozen install +
+# full suite, mirroring CI. A push with failures is blocked.
+bun install --frozen-lockfile || {
+  echo "pre-push: bun.lock out of sync with package.json" >&2
+  exit 1
+}
+bun test || {
+  echo "pre-push: tests failed" >&2
+  exit 1
+}
