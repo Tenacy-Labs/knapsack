@@ -36,7 +36,7 @@ instances depending on shape.
 
 ### 1.1 The application that demanded exactness
 
-[agent-kernel](https://github.com/tenacy-labs/agent-kernel) renders an LLM
+[tenacy](https://github.com/Tenacy-Labs/tenacy) renders an LLM
 agent's context every turn. Each context item (a file, a memory, a prior
 message) admits several mutually exclusive render options — full text,
 outline, or purge — each consuming a different number of tokens (weight) and
@@ -54,7 +54,7 @@ motivated extracting this library:
   *report* how close it is to the LP bound.
 - **Determinism.** Identical inputs must produce byte-identical outputs
   across runs and machines, because downstream re-solve instability is
-  treated as a fault signal (agent-kernel ADR-0003); solver nondeterminism
+  treated as a fault signal (tenacy ADR-0003); solver nondeterminism
   would masquerade as exactly that fault.
 
 ### 1.2 The gap in the ecosystem
@@ -162,7 +162,7 @@ message — never a silently wrong answer.
 - **Exactly one option per group** is chosen; the solver maximizes total
   profit subject to total weight ≤ capacity. There is no implicit
   "choose nothing": a group that may be skipped carries an explicit
-  zero-weight, zero-profit option (agent-kernel's *purge* option is exactly
+  zero-weight, zero-profit option (tenacy's *purge* option is exactly
   this).
 - **Option ids are scoped per group.** The same option id may appear in two
   different groups; it must be unique only among its siblings. Group ids
@@ -692,7 +692,7 @@ and declined alternatives with revisit conditions — lives in
   changed) pays full price. The survey's honest negative: no fetched source
   describes true MCKP warm-starting; the all-capacity value function is the
   nearest substrate if a consumer needs capacity sweeps.
-- **Outside scope, deliberately.** Agent-kernel's actual deviations from
+- **Outside scope, deliberately.** Tenacy's actual deviations from
   classical MCKP — coupled costs (shared layout overheads, suffix
   re-pricing) and cross-turn linkage (hysteresis, transaction costs) — are
   handled in the kernel, not here. The survey maps the online-policy

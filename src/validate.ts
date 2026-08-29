@@ -45,7 +45,7 @@ function isNonNegInt(n: number): boolean {
  * Deliberate scope: weights and profits are NON-NEGATIVE integers, and exactly
  * one option must be chosen per group. A caller that wants "choose nothing"
  * semantics adds a zero-weight, zero-profit option to the group explicitly
- * (agent-kernel's purge option does exactly this).
+ * (tenacy's purge option does exactly this).
  */
 export function validateProblem(problem: KnapsackProblem): void {
   if (!isNonNegInt(problem.capacity)) {

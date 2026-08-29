@@ -56,7 +56,7 @@ disambiguate). No change made; documented here for the record.
   design regime; not worth a caching refactor at current scale. Flagged
   for v0.2 if shapes grow.
 - `solve.ts` exports internals (`solveLp`, `solveDp`, etc.) alongside
-  `solve` — intentional (agent-kernel composition), documented.
+  `solve` — intentional (tenacy composition), documented.
 - Tests: 325 across 2 files; determinism coverage is 1 explicit test
   (byte-identical re-solve); fuzz protocols live outside the suite as
   /tmp scripts — candidates for a `bench/fuzz.ts` harness in v0.2.
@@ -124,7 +124,7 @@ Honest assessment:
 - Author review, not fresh-context: the reviewer (me) designed and built
   the solver. The probes were adversarial against my own claims, but a
   second pair of eyes with no investment in the design remains the gold
-  standard — the agent-kernel merge used three scoped fresh subagents.
+  standard — the tenacy merge used three scoped fresh subagents.
   If this library heads toward external consumers, re-run with scoped
   fresh-context reviewers before any 1.0.
 - The comparison table relies on the research corpus (docs/research/,

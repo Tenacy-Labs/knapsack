@@ -1,5 +1,5 @@
 /**
- * Benchmark: agent-kernel-shaped instances (tens of groups × few options,
+ * Benchmark: tenacy-shaped instances (tens of groups × few options,
  * integer token weights) and stress shapes beyond it.
  *
  * Run: bun run bench/bench.ts
@@ -27,9 +27,9 @@ interface Shape {
 }
 
 const SHAPES: Shape[] = [
-  { name: "agent-kernel small (20g × 3o, w≤400)", groups: 20, options: 3, maxWeight: 400, capacityFactor: 0.5, iterations: 2000 },
-  { name: "agent-kernel full (60g × 5o, w≤600)", groups: 60, options: 5, maxWeight: 600, capacityFactor: 0.6, iterations: 500 },
-  { name: "agent-kernel stress (120g × 6o, w≤800)", groups: 120, options: 6, maxWeight: 800, capacityFactor: 0.5, iterations: 200 },
+  { name: "tenacy small (20g × 3o, w≤400)", groups: 20, options: 3, maxWeight: 400, capacityFactor: 0.5, iterations: 2000 },
+  { name: "tenacy full (60g × 5o, w≤600)", groups: 60, options: 5, maxWeight: 600, capacityFactor: 0.6, iterations: 500 },
+  { name: "tenacy stress (120g × 6o, w≤800)", groups: 120, options: 6, maxWeight: 800, capacityFactor: 0.5, iterations: 200 },
   { name: "wide capacity (40g × 4o, cap 8k)", groups: 40, options: 4, maxWeight: 2000, capacityFactor: 0.55, iterations: 300 },
   { name: "LP-friendly (30g × 3o, roomy)", groups: 30, options: 3, maxWeight: 100, capacityFactor: 0.95, iterations: 1000 },
 ];

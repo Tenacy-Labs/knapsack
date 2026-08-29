@@ -56,12 +56,12 @@ this shrinks n). Expected 5–20× on DP-heavy shapes.
 - Cost: the incumbent-safe core bound is subtle; needs a fresh oracle
   battery and the 127-parity gate. Est. 1–2 days with review.
 
-**F2. Incremental re-solve (append-only prefix reuse).** agent-kernel
+**F2. Incremental re-solve (append-only prefix reuse).** tenacy
 re-solves every turn, and turns *append* groups. The first n−1 groups'
 DP rows are unchanged by an append: re-solve is one sweep of the new
 group, O(C·k̄), instead of O(C·n·k̄) — ~100× on the consumer's actual
 pattern. Requires a checkpoint handle from `solve()`.
-- Trigger: agent-kernel's `solver.ts` swap (I1) — build together; the
+- Trigger: tenacy's `solver.ts` swap (I1) — build together; the
   consumer defines the API.
 - Cost: checkpoint lifecycle + invalidation on non-append edits.
   Est. 1 day + battery.
@@ -112,10 +112,10 @@ reading the source.*
   deliberately NOT on the package surface since 2026-08-23; breaking
   changes to either tier require v0.2 and a migration note. Policy, not
   code.
-- **P2. Package publishing** — *build-when: the agent-kernel swap lands
-  AND the owner approves external publication.* Repo is private;
-  GitHub Packages under the `@tenacy-labs` scope is the first stop
-  (org-visible, no public exposure); public npm only if the library
+- **P2. Package publishing** — *build-when: the tenacy swap lands
+  AND the owner approves external publication.* Repo is public;
+  GitHub Packages under the `@tenacy-labs` scope is the first stop;
+  public npm only if the library
   outgrows the org. Publishing leaves the machine — owner approval is
   part of the trigger, not a formality.
 - **P3. Cookbook** — *opportunistic; bundle with P2.* `docs/examples.md`:
@@ -150,12 +150,12 @@ it. Tests prove correctness; they do not watch performance.
 
 ## Goal 4 — Consumer integration
 
-*Objective: the library replaces agent-kernel's hand-rolled solver.
-Success signal: agent-kernel solves through this package in production.*
+*Objective: the library replaces tenacy's hand-rolled solver.
+Success signal: tenacy solves through this package in production.*
 
-- **I1. agent-kernel `solver.ts` swap — Stage 1+2 shipped (PR #7, 2026-08-22).**
+- **I1. tenacy `solver.ts` swap — Stage 1+2 shipped (PR #7, 2026-08-22).**
   Stage 1: the survey II.4 hazards (O(n²) find, `indexOf` comparator,
-  `localeCompare` nondeterminism) fixed in agent-kernel directly —
+  `localeCompare` nondeterminism) fixed in tenacy directly —
   byte-stable. Stage 2: budget relief now solves through this library
   (`reliefMode: "exact-mckp"`, flag-gated; density remains the ruled
   default per ADR-0005 v1.1). Exact dominance proven by test: ≥ density
@@ -184,7 +184,7 @@ Success signal: agent-kernel solves through this package in production.*
   headroom, one call; the library's own first consumer, per Daniel's
   approachability ruling. Consumer-side math lives in `src/rot.ts`;
   core untouched (ADR framing A preserved). Canonicity of
-  rot-default-v1 moves to the library: agent-kernel imports `DEFAULT_ROT`
+  rot-default-v1 moves to the library: tenacy imports `DEFAULT_ROT`
   rather than re-declaring it (0004/A2 versioned param sets reference
   the export; amendment note in ADR-0001 §6).
 

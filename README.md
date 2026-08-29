@@ -1,7 +1,7 @@
 # @tenacy-labs/knapsack
 
 [![CI](https://github.com/Tenacy-Labs/knapsack/actions/workflows/ci.yml/badge.svg)](https://github.com/Tenacy-Labs/knapsack/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/Tenacy Labs/knapsack)](https://github.com/Tenacy-Labs/knapsack/releases)
+[![Release](https://img.shields.io/github/v/release/Tenacy-Labs/knapsack)](https://github.com/Tenacy-Labs/knapsack/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-%23000.svg)](https://bun.sh)
 
@@ -24,16 +24,17 @@ got close.
 | **Memory-bounded** | worst-case DP memory stays under `16·(C+1)` bytes at any input size |
 | **Battle-tested** | 1,251 tests; ~92,000-instance adversarial fuzz vs brute force, zero wrong answers |
 
-Born from [agent-kernel](https://github.com/tenacy-labs/agent-kernel)'s
+Born from [tenacy](https://github.com/Tenacy-Labs/tenacy) (formerly
+agent-kernel)'s
 per-turn context optimizer (ADR-0005: the render solve *is* an MCKP),
 extracted as a standalone component for pure focus on mathematical
-structure and implementation efficiency. First consumer: agent-kernel;
+structure and implementation efficiency. First consumer: tenacy;
 the library knows nothing about LLMs, tokens, or turns.
 
 ## Quick start
 
 ```sh
-bun add github:Tenacy Labs/knapsack
+bun add github:Tenacy-Labs/knapsack
 ```
 
 ```ts
@@ -84,7 +85,7 @@ carrying a cost (`weight`) and a value (`profit`); `capacity` is the
 budget. The solver picks one option per group, maximizing total profit
 within budget.
 
-The quick start above is agent-kernel's context render, but the mapping
+The quick start above is tenacy's context render, but the mapping
 is domain-agnostic — a packing list works identically:
 
 ```ts
@@ -212,7 +213,7 @@ maximize   Σ_i  p_i(x_i)          one option x_i per group i
 subject to Σ_i  w_i(x_i) ≤ C      integer weights and profits
 ```
 
-Agent-kernel's mapping: groups = context items, options = render variants,
+Tenacy's mapping: groups = context items, options = render variants,
 weight = tokens, C = the turn budget, profit = utility.
 
 ## API
@@ -247,7 +248,7 @@ result.frontier;      // (options.frontier) certified Pareto kinks of P*(w)
 
 `weight` and `profit` are non-negative integers (validated; throws
 `KnapsackValidationError` otherwise). "Choose nothing" semantics are
-modeled explicitly with a zero-weight zero-profit option — agent-kernel's
+modeled explicitly with a zero-weight zero-profit option — tenacy's
 purge. Capacity is a non-negative integer below 2²¹, and the problem must
 satisfy the exactness envelope (Σ per-group max profits)·(largest
 weight) < 2⁵³, and each group may carry at most 255 options (all

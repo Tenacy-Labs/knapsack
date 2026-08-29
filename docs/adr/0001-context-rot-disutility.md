@@ -1,8 +1,8 @@
 # ADR-0001: Context Rot as a Consumer-Side Disutility over the Solver Frontier
 
 **Status:** Accepted — framing, functional form, and defaults ruled by Daniel, 2026-08-23
-**Scope:** knapsack public surface (frontier contract) + consumer integration contract (agent-kernel)
-**Cross-references:** agent-kernel ADR-0005 Am. II (the solver is a knapsack); ADR-0004 Am. I / A2 (per-model rot fitting); ADR-0002e (decision ledger, calibration corpus); ADR-0003 (rot report, refit pipeline); knapsack `docs/future-work.md` (R1–R4, I1)
+**Scope:** knapsack public surface (frontier contract) + consumer integration contract (tenacy)
+**Cross-references:** tenacy ADR-0005 Am. II (the solver is a knapsack); ADR-0004 Am. I / A2 (per-model rot fitting); ADR-0002e (decision ledger, calibration corpus); ADR-0003 (rot report, refit pipeline); knapsack `docs/future-work.md` (R1–R4, I1)
 
 ---
 
@@ -20,7 +20,7 @@ LLMs degrade as the context window fills — a phenomenon the field now calls **
 
 Rot is per-model, per-task-family, and monotone-worsening in total length. Every anchor agrees on the shallow-then-steep shape; none supports a plateau.
 
-The deployed consumer (agent-kernel) solves a per-turn multiple-choice knapsack: groups = context items, options = render representations, weight = tokens, capacity Λ. This ADR answers one question: **where and how does rot enter that optimization?**
+The deployed consumer (tenacy) solves a per-turn multiple-choice knapsack: groups = context items, options = render representations, weight = tokens, capacity Λ. This ADR answers one question: **where and how does rot enter that optimization?**
 
 Three structural facts force the answer:
 
@@ -30,7 +30,7 @@ Three structural facts force the answer:
 
 ## 2. Governing principle
 
-agent-kernel ADR-0004 Am. I, centerpiece: **the option space carries the policy; the solver carries the tradeoff.**
+tenacy ADR-0004 Am. I, centerpiece: **the option space carries the policy; the solver carries the tradeoff.**
 
 Rot is policy: per-model (0004/A2), refit from ledger evidence (0002e), versioned. The frontier is the tradeoff. Therefore:
 
@@ -64,7 +64,7 @@ Consumer-side objective, evaluated over the exposed frontier:
 
 **Proposition 2 (kink sufficiency).** If ρ is monotone non-increasing and H is non-decreasing in slack (both true by construction), then between adjacent kinks the utility is maximized at the left kink. Proof sketch: between kinks P\* is constant while ρ can only fall and H-slack can only shrink with w; hence U is non-increasing on the interval. Corollary: exposing only kinks is lossless. *(Note: no convexity, no unimodality is assumed or needed — the scan is exhaustive over kinks; U(w) over an integer frontier is generally sawtooth, and correctness never leans on smoothness.)*
 
-The scan itself is the **equimarginal stop rule**: keep extending context while the marginal profit density of the next frontier segment exceeds the marginal rot tax −ρ′·(local value); the operating point is where they cross. This is the proactive twin of agent-kernel ADR-0005 v1.1's budget-relief rule (drop worst utility-per-token): same currency, applied before the knee instead of after it.
+The scan itself is the **equimarginal stop rule**: keep extending context while the marginal profit density of the next frontier segment exceeds the marginal rot tax −ρ′·(local value); the operating point is where they cross. This is the proactive twin of tenacy ADR-0005 v1.1's budget-relief rule (drop worst utility-per-token): same currency, applied before the knee instead of after it.
 
 **What P\* cannot see (stated honestly):** sufficiency holds only for utilities that depend on the layout through (total profit, total weight). Positional rot (lost-in-the-middle), content-dependent rot, and cache invalidation costs do not factor this way (§7.3, §9).
 
@@ -97,7 +97,7 @@ Callers who never manage per-model fits still get a conservative, literature-der
 
 Read aloud: *expect to lose 5% of context value by the knee, and half of it by a full window.* **Asymmetric-loss principle:** underestimating rot parks the operating point past a cliff (first-order loss); overestimating it merely shortens context slightly (second-order near the flat optimum). The default therefore calibrates against mid-tier composite benchmarks (agent-like: distractor-rich, multi-source), not best-case NIAH retrieval.
 
-**Where defaults live:** consumer-side, in agent-kernel's versioned parameter sets — the exact slot 0004/A2 created (per-model fits; default = pooled fallback prior). One entry: three numbers, overridable per model. As 0002e ledger + 0003 rot report accumulate, `rot-default-v1` demotes to bootstrap prior; version pins keep old ledgers recomputable. The knapsack repo ships no ρ, no model zoo, and no benchmark-derived numbers in code. *(Amendment, 2026-08-23, Daniel's approachability ruling: the knapsack library now ships `solveRot()` with `DEFAULT_ROT` = rot-default-v1 as a zero-config convenience wrapper; the core solver remains rot-blind. Canonicity of the three numbers moves to the library export — agent-kernel imports `DEFAULT_ROT` rather than re-declaring — and the wrapper is the library acting as its own first consumer of the frontier contract.)*
+**Where defaults live:** consumer-side, in tenacy's versioned parameter sets — the exact slot 0004/A2 created (per-model fits; default = pooled fallback prior). One entry: three numbers, overridable per model. As 0002e ledger + 0003 rot report accumulate, `rot-default-v1` demotes to bootstrap prior; version pins keep old ledgers recomputable. The knapsack repo ships no ρ, no model zoo, and no benchmark-derived numbers in code. *(Amendment, 2026-08-23, Daniel's approachability ruling: the knapsack library now ships `solveRot()` with `DEFAULT_ROT` = rot-default-v1 as a zero-config convenience wrapper; the core solver remains rot-blind. Canonicity of the three numbers moves to the library export — tenacy imports `DEFAULT_ROT` rather than re-declaring — and the wrapper is the library acting as its own first consumer of the frontier contract.)*
 
 ## 7. Decision analysis: the forces your questions exposed
 
@@ -129,7 +129,7 @@ Cache validity is prefix-structured: process groups in render order with DP stat
 
 ## 9. Consequences and future work
 
-**Immediate:** `result.frontier` (kinks, low-w coverage, full-row escape hatch) is the knapsack implementation task — a change of result surface only, no algorithm change; default hinge + scan + re-solve reconstruction land consumer-side in agent-kernel's parameter sets; rot observability per 0004/A2 gives the instrument that grades the model.
+**Immediate:** `result.frontier` (kinks, low-w coverage, full-row escape hatch) is the knapsack implementation task — a change of result surface only, no algorithm change; default hinge + scan + re-solve reconstruction land consumer-side in tenacy's parameter sets; rot observability per 0004/A2 gives the instrument that grades the model.
 
 **The honest boundary of this ADR:** P\*(w) cannot see *where* tokens sit or *what* they cost to keep cached. Three exits, each named and triggered by evidence, not speculatively built:
 
@@ -143,7 +143,7 @@ Cache validity is prefix-structured: process groups in render order with DP stat
 
 - **Retention space** (ρ-space): ρ(w) ∈ (0, 1], ρ(0) = 1, non-increasing. Slopes negative or zero. *Concave ρ = shallow-then-steep decay = convex loss.* **Loss space** (g-space): g(w) = 1 − ρ(w), non-decreasing, g(0) = 0. *Convex g ⇔ concave ρ.* The two spaces carry identical information with mirrored curvature adjectives — the hazard is real; this ADR writes retention space with explicit numeric slopes (−s₁, −s₂, s₁ ≤ s₂) to eliminate ambiguity.
 - **Knee** t\*: the knot where slope steepens. **Operating point** w\*: the frontier point the consumer's scan selects. **Frontier** P\*(w): the DP's final value row, kinks only by default.
-- The solver is **exact, not greedy**: greedy appears only inside the LP bound's density walk (certified-integral fast path; exact DP decides otherwise — `dpRequired` flag). The consumer's relief rule (drop-worst-density, ADR-0005 v1.1) is a separate, ruled heuristic in agent-kernel, not this solver's algorithm. No conflation.
+- The solver is **exact, not greedy**: greedy appears only inside the LP bound's density walk (certified-integral fast path; exact DP decides otherwise — `dpRequired` flag). The consumer's relief rule (drop-worst-density, ADR-0005 v1.1) is a separate, ruled heuristic in tenacy, not this solver's algorithm. No conflation.
 
 ## 11. References
 
@@ -152,7 +152,7 @@ Cache validity is prefix-structured: process groups in render order with DP stat
 3. *Critical-threshold study.* arXiv:2601.15300 (2026) — knee ~43%, −45. F1 over ~10% band, no recovery.
 4. Modarressi et al. *NoLiMa: Long-Context Evaluation Beyond Literal Matching.* arXiv:2502.05167, ICML 2025.
 5. Liu et al. *Lost in the Middle: How Language Models Use Long Contexts.* TACL 2024.
-6. agent-kernel ADR-0005 Amendment II (2026-08-21) — the solver is a per-turn MCKP; coupled costs and cross-turn linkage flagged.
-7. agent-kernel ADR-0004 Amendment I (2026-08-21) — per-model rot fitting (A2); option-space-carries-policy centerpiece.
-8. agent-kernel ADR-0002e (2026-08-21) — decision ledger and calibration corpus.
-9. agent-kernel ADR-0003 (2026-08-21) — analysis/tuning layer; rot report; refit pipeline with prior-divergence guards.
+6. tenacy ADR-0005 Amendment II (2026-08-21) — the solver is a per-turn MCKP; coupled costs and cross-turn linkage flagged.
+7. tenacy ADR-0004 Amendment I (2026-08-21) — per-model rot fitting (A2); option-space-carries-policy centerpiece.
+8. tenacy ADR-0002e (2026-08-21) — decision ledger and calibration corpus.
+9. tenacy ADR-0003 (2026-08-21) — analysis/tuning layer; rot report; refit pipeline with prior-divergence guards.
