@@ -15,22 +15,23 @@ FILES="$(git diff --name-only "$MERGE_BASE" HEAD)"
 fail=0
 
 # 1. Skipped/focused tests added in test files.
-if echo "$DIFF_TEST" | grep -qE '^\+[^+].*\.(skip|only|todo)\('; then
+if printf '%s' "$DIFF_TEST" | grep -E '^\+[^+].*\.(skip|only|todo)\(' >/dev/null; then
   echo "PR-GUARD FAIL: diff adds .skip()/.only()/.todo() in tests — weaken the suite elsewhere, not here" >&2
-  echo "$DIFF_TEST" | grep -nE '^\+[^+].*\.(skip|only|todo)\(' | head -5 >&2
+  printf '%s' "$DIFF_TEST" | grep -nE '^\+[^+].*\.(skip|only|todo)\(' | head -5 >&2
   fail=1
 fi
 
 # 2. Suppression comments added in code (type/lint escapes).
-if echo "$DIFF_CODE" | grep -qE '^\+[^+].*(@ts-ignore|@ts-expect-error|eslint-disable|biome-ignore)'; then
+if printf '%s' "$DIFF_CODE" | grep -E '^\+[^+].*(@ts-ignore|@ts-expect-error|eslint-disable|biome-ignore)' >/dev/null; then
   echo "PR-GUARD FAIL: diff adds suppression comments (@ts-ignore, eslint-disable, ...) in src/test/bench" >&2
-  echo "$DIFF_CODE" | grep -nE '^\+[^+].*(@ts-ignore|@ts-expect-error|eslint-disable|biome-ignore)' | head -5 >&2
+  printf '%s' "$DIFF_CODE" | grep -nE '^\+[^+].*(@ts-ignore|@ts-expect-error|eslint-disable|biome-ignore)' | head -5 >&2
   fail=1
 fi
 
-# 3. Debug logging added to library code (src/ must stay silent).
-if echo "$DIFF_SRC" | grep -qE '^\+[^+].*console\.(log|debug)\('; then
-  echo "PR-GUARD FAIL: diff adds console.log/debug to src/ — the library must stay silent" >&2
+# 3. Logging added to library code (src/ must stay silent). All console
+#    methods — info/warn/error are just as much a channel leak as log.
+if printf '%s' "$DIFF_SRC" | grep -E '^\+[^+].*console\.(log|debug|info|warn|error)\(' >/dev/null; then
+  echo "PR-GUARD FAIL: diff adds console.log/debug/info/warn/error to src/ — the library must stay silent" >&2
   fail=1
 fi
 

@@ -27,7 +27,7 @@
     "check:api": "bun run scripts/check-api-surface.ts"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.0",
+    "@types/bun": "1.3.14",
     "typescript": "5.9.2"
   },
   "publishConfig": {

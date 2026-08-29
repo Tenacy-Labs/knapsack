@@ -1,3 +1,10 @@
 node_modules/
 *.log
 .DS_Store
+# Rust build scratch (prebuilts land in native/prebuilt/ via CI).
+native/target/
+# Local perf-gate scratch (bench.json / bench2.json / bench-output.txt
+# are CI artifacts, not source).
+bench.json
+bench2.json
+bench-output.txt
