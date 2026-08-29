@@ -1,12 +1,10 @@
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: "/"
-    schedule:
-      interval: weekly
-    groups:
-      dev-dependencies:
-        patterns: ["*"]
+  # npm updates are deliberately NOT enabled: Dependabot cannot update
+  # bun.lock, so its PRs always fail the frozen-lockfile gate in CI.
+  # Bump devDependencies manually with `bun update` (lockfile changes
+  # ride in the same commit), and mind bun/TS majors — bench baselines
+  # and paper §7.2 measurements are version-sensitive.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
