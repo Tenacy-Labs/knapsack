@@ -1,4 +1,4 @@
-# Code Review — @connectotron/knapsack v0.1.0 (2026-08-22)
+# Code Review — @tenacy-labs/knapsack v0.1.0 (2026-08-22)
 
 Reviewer: Robby (author review, evidence-gated — every probe below was
 executed, not asserted). Scope: all of `src/` (916 lines), tests, docs

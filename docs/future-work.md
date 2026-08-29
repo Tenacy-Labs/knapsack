@@ -114,7 +114,7 @@ reading the source.*
   code.
 - **P2. Package publishing** — *build-when: the agent-kernel swap lands
   AND the owner approves external publication.* Repo is private;
-  GitHub Packages under the `@connectotron` scope is the first stop
+  GitHub Packages under the `@tenacy-labs` scope is the first stop
   (org-visible, no public exposure); public npm only if the library
   outgrows the org. Publishing leaves the machine — owner approval is
   part of the trigger, not a formality.

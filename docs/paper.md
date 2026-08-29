@@ -1,7 +1,7 @@
 # Exact Multiple-Choice Knapsack Solving for Latency-Budgeted Context Selection
 
-**A component paper for `@connectotron/knapsack` v0.1.0**
-Connectotron · August 2026
+**A component paper for `@tenacy-labs/knapsack` v0.1.0**
+Tenacy Labs · August 2026
 
 ---
 
@@ -36,7 +36,7 @@ instances depending on shape.
 
 ### 1.1 The application that demanded exactness
 
-[agent-kernel](https://github.com/Connectotron/agent-kernel) renders an LLM
+[agent-kernel](https://github.com/tenacy-labs/agent-kernel) renders an LLM
 agent's context every turn. Each context item (a file, a memory, a prior
 message) admits several mutually exclusive render options — full text,
 outline, or purge — each consuming a different number of tokens (weight) and

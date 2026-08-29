@@ -1,7 +1,7 @@
-# @connectotron/knapsack
+# @tenacy-labs/knapsack
 
-[![CI](https://github.com/Connectotron/knapsack/actions/workflows/ci.yml/badge.svg)](https://github.com/Connectotron/knapsack/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/Connectotron/knapsack)](https://github.com/Connectotron/knapsack/releases)
+[![CI](https://github.com/Tenacy-Labs/knapsack/actions/workflows/ci.yml/badge.svg)](https://github.com/Tenacy-Labs/knapsack/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Tenacy Labs/knapsack)](https://github.com/Tenacy-Labs/knapsack/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-%23000.svg)](https://bun.sh)
 
@@ -24,7 +24,7 @@ got close.
 | **Memory-bounded** | worst-case DP memory stays under `16·(C+1)` bytes at any input size |
 | **Battle-tested** | 1,251 tests; ~92,000-instance adversarial fuzz vs brute force, zero wrong answers |
 
-Born from [agent-kernel](https://github.com/Connectotron/agent-kernel)'s
+Born from [agent-kernel](https://github.com/tenacy-labs/agent-kernel)'s
 per-turn context optimizer (ADR-0005: the render solve *is* an MCKP),
 extracted as a standalone component for pure focus on mathematical
 structure and implementation efficiency. First consumer: agent-kernel;
@@ -33,11 +33,11 @@ the library knows nothing about LLMs, tokens, or turns.
 ## Quick start
 
 ```sh
-bun add github:Connectotron/knapsack
+bun add github:Tenacy Labs/knapsack
 ```
 
 ```ts
-import { solve } from "@connectotron/knapsack";
+import { solve } from "@tenacy-labs/knapsack";
 
 const result = solve({
   groups: [
@@ -174,7 +174,7 @@ consumer layer (ADR-0001): it scans the certified Pareto frontier under a
 retention curve ρ and returns the layout at the best operating point.
 
 ```ts
-import { solveRot } from "@connectotron/knapsack";
+import { solveRot } from "@tenacy-labs/knapsack";
 
 const result = solveRot(problem);   // rot-default-v1 if you pass nothing
 // `problem` here: the quick-start two-file problem at capacity: 800
@@ -214,6 +214,34 @@ subject to Σ_i  w_i(x_i) ≤ C      integer weights and profits
 
 Agent-kernel's mapping: groups = context items, options = render variants,
 weight = tokens, C = the turn budget, profit = utility.
+
+## API
+
+```ts
+import { solve } from "@tenacy-labs/knapsack";
+
+const result = solve({
+  groups: [
+    {
+      id: "file:src/lp.ts",
+      options: [
+        { id: "full",   weight: 420, profit: 90 },
+        { id: "outline", weight: 60, profit: 55 },
+        { id: "purge",   weight: 0,  profit: 0  },
+      ],
+    },
+    // ... more groups
+  ],
+  capacity: 8_000,
+});
+
+result.status;        // "optimal" | "infeasible" | "bounded" (reliefMode)
+result.value;         // optimal total profit
+result.choices;       // [{ groupId, optionId }, ...] — one per group
+result.bounds;        // { lpUpper, greedyLower } — LP/Dantzig bracket
+result.stats;         // reduction counts, dpRequired, dpCellsVisited, dpKernelUsed
+result.frontier;      // (options.frontier) certified Pareto kinks of P*(w)
+```
 
 ## Input domain
 
@@ -286,6 +314,23 @@ brute force on randomized instances — a 600-seed adversarial battery
 medium, and roomy capacities; infeasibility agreement; replay-hash
 determinism) plus a 300-seed uniform battery, all committed in
 `test/adversarial.test.ts` and `test/solver.test.ts` and run in CI.
+
+## Native kernel
+
+`solve()` prefers a compiled SIMD kernel (Rust cdylib, `native/`) when a
+prebuilt dylib for the host triple exists — `aarch64-apple-darwin` ships
+in-tree under `native/prebuilt/`; other triples build from source with
+`cargo build --release` (baseline vector widths: NEON on aarch64,
+SSE2-class on x86_64 — no AVX assumptions). If the dylib is absent or
+fails to load, the TypeScript SoA kernel serves the answer with
+identical outputs (differential-proven: 500 problems, value/weight/
+choices/cellsVisited). `stats.dpKernelUsed` reports which path ran
+("native" | "soa" | "reference" | "none"). `dpKernel: "reference"`
+opts out; `dpKernel: "soa"` pins the TypeScript path explicitly.
+`KNAPSACK_NATIVE_DYLIB` overrides the dylib path (testing).
+
+Provenance for prebuilt dylibs (toolchain, sha256, rebuild recipe):
+`native/prebuilt/PROVENANCE.md`.
 
 ## Development
 
