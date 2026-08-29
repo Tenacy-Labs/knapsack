@@ -1,0 +1,262 @@
+name: Ship Native
+
+# Prebuilt native kernel pipeline (review round 4, M5): the binaries
+# under native/prebuilt/ are distributables the npm package ships to
+# every consumer; this workflow is their only sanctioned build path.
+# Every run:
+#   - builds all five (platform, arch) triples on native runners with a
+#     pinned rustc (PROVENANCE.md's toolchain, kept identical across
+#     triples), running the Rust guard tests first;
+#   - on host-matching runners, runs the Bun differential (fresh dylib
+#     vs the TypeScript kernel) against the JUST-BUILT artifact;
+#   - verifies the COMMITTED binaries byte-for-byte (sha256 against
+#     PROVENANCE.md) and that PROVENANCE's source-hash matches the
+#     checked-out native/ sources — stale binaries fail loudly;
+#   - on workflow_dispatch(refresh=true), commits freshly built
+#     binaries plus a regenerated PROVENANCE.md to the dispatching
+#     branch (the source-change ritual: edit lib.rs -> dispatch refresh
+#     -> merge the refreshed binaries in the same PR).
+
+on:
+  push:
+    branches: [main]
+    paths: [native/**, .github/workflows/ship-native.yml]
+  pull_request:
+    paths: [native/**, .github/workflows/ship-native.yml]
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: "Commit rebuilt binaries + regenerated PROVENANCE.md to the dispatching branch"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ship-native-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  RUST_VERSION: "1.95.0"
+
+jobs:
+  build:
+    name: build ${{ matrix.triple }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - triple: aarch64-apple-darwin
+            os: macos-latest # arm64 runner, native build
+            ext: .dylib
+            host-test: true
+          - triple: x86_64-apple-darwin
+            os: macos-latest # cross from arm64 (Xcode linker handles it)
+            ext: .dylib
+            cross: x86_64-apple-darwin
+          - triple: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            ext: .so
+            host-test: true
+          - triple: aarch64-unknown-linux-gnu
+            os: ubuntu-latest # cross via gcc-aarch64-linux-gnu
+            ext: .so
+            cross: aarch64-unknown-linux-gnu
+            cross-linker: aarch64-linux-gnu-gcc
+          - triple: x86_64-pc-windows-msvc
+            os: windows-latest
+            ext: .dll
+            host-test: true
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Pin Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install "$RUST_VERSION" --profile minimal --no-self-update
+          rustup default "$RUST_VERSION"
+          cargo --version
+      - name: Install cross linker (${{ matrix.cross-linker }})
+        if: matrix.cross-linker != ''
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Rust guard tests + release build
+        working-directory: native
+        shell: bash
+        env:
+          CROSS_TARGET: ${{ matrix.cross }}
+          CROSS_LINKER: ${{ matrix.cross-linker }}
+        run: |
+          set -euo pipefail
+          cargo test --release --locked
+          if [ -n "$CROSS_TARGET" ]; then
+            rustup target add "$CROSS_TARGET"
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="$CROSS_LINKER"
+            cargo build --release --locked --target "$CROSS_TARGET"
+          else
+            cargo build --release --locked
+          fi
+      - name: Stage artifact
+        shell: bash
+        env:
+          CROSS_TARGET: ${{ matrix.cross }}
+          TRIPLE: ${{ matrix.triple }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          set -euo pipefail
+          if [ -n "$CROSS_TARGET" ]; then
+            bin="native/target/$CROSS_TARGET/release/libknapsack_native$EXT"
+          else
+            bin="native/target/release/libknapsack_native$EXT"
+          fi
+          cp "$bin" "$TRIPLE$EXT"
+          hash_cmd="sha256sum"; command -v sha256sum >/dev/null || hash_cmd="shasum -a 256"
+          "$hash_cmd" "$TRIPLE$EXT" | tee "sha-$TRIPLE.txt"
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        if: matrix.host-test
+        with:
+          bun-version: 1.3.14 # pinned: match ci.yml
+      - name: Differential vs TypeScript kernel (fresh artifact)
+        if: matrix.host-test
+        shell: bash
+        env:
+          TRIPLE: ${{ matrix.triple }}
+          EXT: ${{ matrix.ext }}
+        run: |
+          bun install --frozen-lockfile
+          KNAPSACK_NATIVE_DYLIB="$PWD/$TRIPLE$EXT" bun test test/native.test.ts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: binaries-${{ matrix.triple }}
+          path: |
+            ${{ matrix.triple }}${{ matrix.ext }}
+            sha-${{ matrix.triple }}.txt
+          if-no-files-found: error
+
+  # Byte-for-byte integrity of the committed distributables + staleness
+  # gate (PROVENANCE's source-hash must match native/ at this SHA).
+  verify:
+    needs: build
+    if: github.event_name != 'workflow_dispatch' || inputs.refresh != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Verify committed binaries against PROVENANCE.md
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail=0
+          ext_of() {
+            if [ -f "dist/$1.dylib" ]; then echo .dylib
+            elif [ -f "dist/$1.so" ]; then echo .so
+            else echo .dll; fi
+          }
+          # Staleness: the recorded source-hash must match this tree's
+          # native/ sources; a mismatch means lib.rs/Cargo changed since
+          # the last refresh — dispatch Ship Native with refresh=true.
+          recorded=$(grep -oP '^source-hash: \K[0-9a-f]{64}' native/prebuilt/PROVENANCE.md || true)
+          computed=$(cat native/src/lib.rs native/Cargo.toml native/Cargo.lock | sha256sum | cut -d' ' -f1)
+          if [ "$recorded" != "$computed" ]; then
+            echo "STALE BINARIES: PROVENANCE source-hash $recorded != native/ sources $computed" >&2
+            echo "Run: workflow_dispatch Ship Native with refresh=true on this branch, land the refreshed binaries in the same PR." >&2
+            fail=1
+          fi
+          # Integrity: each committed distributable must match its
+          # freshly built counterpart byte-for-byte.
+          for f in dist/sha-*.txt; do
+            triple=$(basename "$f" .txt); triple=${triple#sha-}
+            ext=$(ext_of "$triple")
+            expected=$(cut -d' ' -f1 "$f")
+            committed=$(sha256sum "native/prebuilt/$triple$ext" | cut -d' ' -f1)
+            if [ "$expected" != "$committed" ]; then
+              echo "BINARY DRIFT: committed $triple$ext ($committed) != fresh build ($expected)" >&2
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
+            echo "verify: committed prebuilts are stale or drifted — see above" >&2
+            exit 1
+          fi
+          echo "verify: all five prebuilts byte-identical to fresh builds; sources match PROVENANCE."
+
+  # Manual ritual after native/ source changes: build everything, then
+  # commit the refreshed binaries + regenerated PROVENANCE.md to the
+  # dispatching branch so verify goes green on the same PR.
+  refresh:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.refresh == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - name: Install refreshed binaries + regenerate PROVENANCE.md
+        shell: bash
+        run: |
+          set -euo pipefail
+          ext_of() {
+            if [ -f "dist/$1.dylib" ]; then echo .dylib
+            elif [ -f "dist/$1.so" ]; then echo .so
+            else echo .dll; fi
+          }
+          for f in dist/sha-*.txt; do
+            triple=$(basename "$f" .txt); triple=${triple#sha-}
+            cp "dist/$triple$(ext_of "$triple")" "native/prebuilt/$triple$(ext_of "$triple")"
+          done
+          source_hash=$(cat native/src/lib.rs native/Cargo.toml native/Cargo.lock | sha256sum | cut -d' ' -f1)
+          {
+            echo "# Prebuilt native dylibs — provenance"
+            echo
+            echo "Machine-regenerated by the \`ship-native\` workflow (workflow_dispatch"
+            echo "refresh=true) — the only sanctioned build path. Do not hand-edit."
+            echo
+            echo "source-hash: $source_hash"
+            echo
+            echo "The source-hash is sha256 of native/src/lib.rs + Cargo.toml +"
+            echo "Cargo.lock concatenated; the verify job recomputes it on every"
+            echo "run — edit native/ sources, then dispatch a refresh so the"
+            echo "binaries and this file move in the same PR."
+            echo
+            echo "## Current prebuilts (rustc $RUST_VERSION, built on Actions runners)"
+            echo
+            echo "| triple | size | sha256 | built on |"
+            echo "|---|---|---|---|"
+            for f in dist/sha-*.txt; do
+              triple=$(basename "$f" .txt); triple=${triple#sha-}
+              ext=$(ext_of "$triple")
+              sha=$(cut -d' ' -f1 "$f")
+              size=$(stat -c%s "dist/$triple$ext")
+              os=$(case "$triple" in *apple-darwin) echo macos-latest;; *linux*) echo ubuntu-latest;; *windows*) echo windows-latest;; esac)
+              echo "| $triple | $size | $sha | $os (rustc $RUST_VERSION) |"
+            done
+            echo
+            echo "## Verification (per build)"
+            echo
+            echo "- Rust guard tests (raw-ABI validation: empty groups, profit-sum"
+            echo "  and window overflow guards) run before every build."
+            echo "- Host-matching runners run the Bun 500-problem differential"
+            echo "  (value/weight/choiceIndex/cellsVisited) against the FRESH"
+            echo "  artifact via KNAPSACK_NATIVE_DYLIB."
+            echo "- The verify job checks every committed binary byte-for-byte"
+            echo "  against the fresh build and the source-hash above."
+            echo "- rc conventions: 0 ok; −1 over budget; −2 infeasible; −3 invalid"
+            echo "  input; −4 contained panic (catch_unwind at the FFI edge)."
+          } > native/prebuilt/PROVENANCE.md
+      - name: Commit refreshed binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="${GITHUB_REF_NAME}"
+          git add native/prebuilt
+          git commit -m "chore(native): refresh prebuilt binaries (ship-native workflow)"
+          git push origin "HEAD:$branch"
