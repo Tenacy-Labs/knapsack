@@ -4,6 +4,10 @@ name: Ship Native
 # under native/prebuilt/ are distributables the npm package ships to
 # every consumer; this workflow is their only sanctioned build path.
 # Every run:
+#   - detects whether native/ (or this workflow) changed; builds only
+#     when it did — but the `verify` job reports on EVERY PR (sentinel
+#     success when nothing native changed), so "Ship Native / verify"
+#     is safe to list as a branch-protection required check;
 #   - builds all five (platform, arch) triples on native runners with a
 #     pinned rustc (PROVENANCE.md's toolchain, kept identical across
 #     triples), running the Rust guard tests first;
@@ -24,7 +28,10 @@ on:
     branches: [main]
     paths: [native/**, .github/workflows/ship-native.yml]
   pull_request:
-    paths: [native/**, .github/workflows/ship-native.yml]
+    # No paths filter: the verify sentinel must report on every PR for
+    # branch protection (a path-filtered required check leaves untouched
+    # PRs stuck in "expected"). The build matrix is gated by the
+    # `changes` job instead.
   workflow_dispatch:
     inputs:
       refresh:
@@ -43,8 +50,38 @@ env:
   RUST_VERSION: "1.95.0"
 
 jobs:
+  # Path detection: does this run touch native sources or this
+  # workflow? PR events diff against the merge base; dispatch and push
+  # default to building.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      native: ${{ steps.detect.outputs.native }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # merge-base against the PR base
+      - name: Detect native changes
+        id: detect
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -z "$BASE" ]; then
+            echo "native=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base="$(git merge-base "$BASE" HEAD)"
+          if git diff --name-only "$base" HEAD -- native/ .github/workflows/ship-native.yml | grep -q .; then
+            echo "native=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "native=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: build ${{ matrix.triple }}
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -142,20 +179,33 @@ jobs:
             sha-${{ matrix.triple }}.txt
           if-no-files-found: error
 
-  # Byte-for-byte integrity of the committed distributables + staleness
-  # gate (PROVENANCE's source-hash must match native/ at this SHA).
+  # Provenance gates for the committed distributables. This job reports
+  # a conclusion on EVERY PR (sentinel success when nothing under
+  # native/ changed) so it is safe as a branch-protection required
+  # check; the gates themselves run only when the build matrix did.
   verify:
-    needs: build
-    if: github.event_name != 'workflow_dispatch' || inputs.refresh != true
+    needs: [changes, build]
+    if: always() && (github.event_name != 'workflow_dispatch' || inputs.refresh != true)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Sentinel — no native changes in this PR
+        if: needs.changes.outputs.native != 'true'
+        run: 'echo "verify: no native/ changes — provenance gates skipped (required-check sentinel: success)"'
+      - name: Fail closed when the build matrix did not succeed
+        if: needs.changes.outputs.native == 'true' && needs.build.result != 'success'
+        run: |
+          echo "verify: build matrix result was '${{ needs.build.result }}' — cannot verify provenance without fresh builds" >&2
+          exit 1
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: needs.changes.outputs.native == 'true'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        if: needs.changes.outputs.native == 'true'
         with:
           path: dist
           merge-multiple: true
       - name: Verify committed binaries against PROVENANCE.md
+        if: needs.changes.outputs.native == 'true'
         shell: bash
         run: |
           set -euo pipefail
