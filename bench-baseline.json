@@ -1,27 +1,45 @@
-[
-  {
-    "name": "tenacy small (20g × 3o, w≤400)",
-    "unit": "us/solve",
-    "value": 60.719697499999974
-  },
-  {
-    "name": "tenacy full (60g × 5o, w≤600)",
-    "unit": "us/solve",
-    "value": 123.46641000000005
-  },
-  {
-    "name": "tenacy stress (120g × 6o, w≤800)",
-    "unit": "us/solve",
-    "value": 2984.518325000001
-  },
-  {
-    "name": "wide capacity (40g × 4o, cap 8k)",
-    "unit": "us/solve",
-    "value": 520.1503666666648
-  },
-  {
-    "name": "LP-friendly (30g × 3o, roomy)",
-    "unit": "us/solve",
-    "value": 19.783069999999725
-  }
-]
+{
+  "schema": 2,
+  "history": [
+    {
+      "name": "tenacy small (20g × 3o, w≤400)",
+      "unit": "solver-ms/cal-ms",
+      "values": [
+        60.719697499999974,
+        0.01093156431442175
+      ]
+    },
+    {
+      "name": "tenacy full (60g × 5o, w≤600)",
+      "unit": "solver-ms/cal-ms",
+      "values": [
+        123.46641000000005,
+        0.01532939029927717
+      ]
+    },
+    {
+      "name": "tenacy stress (120g × 6o, w≤800)",
+      "unit": "solver-ms/cal-ms",
+      "values": [
+        2984.518325000001,
+        0.6067611651003508
+      ]
+    },
+    {
+      "name": "wide capacity (40g × 4o, cap 8k)",
+      "unit": "solver-ms/cal-ms",
+      "values": [
+        520.1503666666648,
+        0.05957727417198729
+      ]
+    },
+    {
+      "name": "LP-friendly (30g × 3o, roomy)",
+      "unit": "solver-ms/cal-ms",
+      "values": [
+        19.783069999999725,
+        0.004009915160880732
+      ]
+    }
+  ]
+}
