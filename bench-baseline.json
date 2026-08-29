@@ -2,26 +2,26 @@
   {
     "name": "tenacy small (20g × 3o, w≤400)",
     "unit": "us/solve",
-    "value": 77.47986500000003
+    "value": 87.00672499999999
   },
   {
     "name": "tenacy full (60g × 5o, w≤600)",
     "unit": "us/solve",
-    "value": 163.85751000000027
+    "value": 159.1635599999998
   },
   {
     "name": "tenacy stress (120g × 6o, w≤800)",
     "unit": "us/solve",
-    "value": 4555.503450000001
+    "value": 4612.15825
   },
   {
     "name": "wide capacity (40g × 4o, cap 8k)",
     "unit": "us/solve",
-    "value": 721.3002999999995
+    "value": 722.4786500000013
   },
   {
     "name": "LP-friendly (30g × 3o, roomy)",
     "unit": "us/solve",
-    "value": 27.309514999999465
+    "value": 23.417895000000044
   }
 ]
