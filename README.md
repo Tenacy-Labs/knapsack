@@ -336,9 +336,10 @@ determinism) plus a 300-seed uniform battery, all committed in
 prebuilt library for the host triple exists. All five triples ship
 in-tree under `native/prebuilt/` (aarch64/x86_64 Apple, aarch64/x86_64
 Linux, x86_64 Windows), built by the `Ship Native` GitHub workflow on
-native runners with a pinned rustc — the workflow verifies every
-committed binary byte-for-byte against a fresh build and runs the Bun
-differential before any PR with native changes can merge (baseline
+native runners with a pinned rustc — the workflow gates every PR with
+native changes on the committed binaries matching the recorded
+PROVENANCE hashes and a source-hash staleness check, and runs the Bun
+differential against the fresh build (baseline
 vector widths: NEON on aarch64, SSE2-class on x86_64 — no AVX
 assumptions). If the dylib is absent, unloadable, or the runtime is not
 Bun, the TypeScript SoA kernel serves the answer with identical outputs
