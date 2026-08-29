@@ -28,6 +28,13 @@ Plain shell in `.githooks/` — no dependency, nothing to install
 beyond git. CI runs the same gates, so skipping a hook
 (`git push --no-verify`) only moves the failure downstream.
 
+## main is protected
+
+PRs are mandatory — `main` requires `CI / test` and `PR Guard / guard`
+to pass on an up-to-date branch. Force pushes are blocked for everyone.
+(Owner/admin retains a direct-push bypass for hotfixes; agents never
+have it.)
+
 ## PR gates (PR Guard workflow)
 
 PRs run anti-weakening checks beyond the test suite
