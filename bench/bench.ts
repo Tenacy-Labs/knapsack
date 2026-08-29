@@ -38,7 +38,11 @@ const SHAPES: Shape[] = [
   { name: "tenacy small (20g × 3o, w≤400)", groups: 20, options: 3, maxWeight: 400, capacityFactor: 0.5, iterations: 2000 },
   { name: "tenacy full (60g × 5o, w≤600)", groups: 60, options: 5, maxWeight: 600, capacityFactor: 0.6, iterations: 500 },
   { name: "tenacy stress (120g × 6o, w≤800)", groups: 120, options: 6, maxWeight: 800, capacityFactor: 0.5, iterations: 200 },
-  { name: "wide capacity (40g × 4o, cap 8k)", groups: 40, options: 4, maxWeight: 2000, capacityFactor: 0.55, iterations: 300 },
+  // Honest label (review round 4): capacityFactor 0.55 across the
+  // min/max weight span of 40×4 options at w≤2000 lands at ≈40-43k,
+  // not 8k. Renaming re-seeds this shape's baseline on the next main
+  // run — the gate treats it as a new shape for one cycle.
+  { name: "wide capacity (40g × 4o, cap ≈42k)", groups: 40, options: 4, maxWeight: 2000, capacityFactor: 0.55, iterations: 300 },
   { name: "LP-friendly (30g × 3o, roomy)", groups: 30, options: 3, maxWeight: 100, capacityFactor: 0.95, iterations: 1000 },
 ];
 
@@ -92,6 +96,11 @@ for (const shape of SHAPES) {
   // 10 batches: all SHAPES iteration counts divide evenly, and min-of-10
   // is tight enough for a 20% gate on shared runners.
   const Batches = 10;
+  if (shape.iterations % Batches !== 0) {
+    // A non-divisible count silently truncates each batch's problem list
+    // while dividing by the full perBatch — every number below would lie.
+    throw new Error(`bench shape ${JSON.stringify(shape.name)}: iterations (${shape.iterations}) must divide by ${Batches}`);
+  }
   const perBatch = shape.iterations / Batches;
   let dpRuns = 0;
   let totalCells = 0;
@@ -109,7 +118,14 @@ for (const shape of SHAPES) {
     batchMeans.push((performance.now() - t0) / perBatch);
   }
   batchMeans.sort((a, b) => a - b);
-  const median = batchMeans[Math.floor(batchMeans.length / 2)]!;
+  // True median: with an even batch count this averages the middle two
+  // (the old index-5 pick was the UPPER median of 10 — a small but
+  // systematic over-report in the display table only; the gate's JSON
+  // value has always been the min).
+  const mid = batchMeans.length >> 1;
+  const median = batchMeans.length % 2
+    ? batchMeans[mid]!
+    : (batchMeans[mid - 1]! + batchMeans[mid]!) / 2;
   const dpPct = Math.round((100 * dpRuns) / shape.iterations);
   // Relative units: solver ms per calibration ms. Comparisons across
   // runners compare these, never the absolute µs in the table above.

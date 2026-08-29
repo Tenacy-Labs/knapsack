@@ -4,6 +4,10 @@ import {
   type KnapsackProblem,
   type KnapsackResult,
 } from "@tenacy-labs/knapsack";
+// Host-agnostic kernel expectation: mirror the loader's own availability
+// probe (CI runs linux x86_64 with the committed .so; dev macs load the
+// committed .dylib).
+import { nativeAvailable } from "../src/native.ts";
 
 /**
  * Integration coverage deliberately imports the package by its public name.
@@ -78,7 +82,10 @@ describe("public package pipeline", () => {
         optionsAfterFathoming: 7,
         dpRequired: true,
         dpCellsVisited: 90,
-        dpKernelUsed: expect.any(String),
+        // The default dispatch policy serves this shape with the compiled
+        // kernel where available, the TS SoA kernel elsewhere — but never
+        // the reference D&C opt-out (that would be a routing regression).
+        dpKernelUsed: nativeAvailable() ? "native" : "soa",
       },
     });
   });

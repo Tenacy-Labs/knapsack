@@ -212,11 +212,17 @@ describe(`solve — adversarial fuzz battery (${FUZZ_SEEDS} seeds × 4 styles ×
   test("battery summary — both paths exercised", () => {
     // The battery must actually exercise feasible AND infeasible paths:
     // if either count collapses the generator drifted and the battery
-    // silently weakened. 600-seed run on 2026-08-23: 512 feasible,
-    // 88 infeasible, 233 DP-required.
-    expect(feasibleCount).toBeGreaterThan(400);
-    expect(600 - feasibleCount).toBeGreaterThan(50); // infeasible coverage
-    expect(dpCount).toBeGreaterThan(100);
+    // silently weakened. Thresholds are PROPORTIONAL to FUZZ_SEEDS so
+    // the nightly deep fuzz (FUZZ_SEEDS=10000+) validates the same
+    // health invariant instead of failing arithmetic written for the
+    // 600-seed default (review round 4 M2). Reference ratios from the
+    // 600-seed run on 2026-08-23: 512 feasible, 88 infeasible, 233
+    // DP-required — the floors below sit well under them so fresh
+    // nightly seed territory (FUZZ_SEED_OFFSET) only fails on real
+    // generator drift, not sampling noise.
+    expect(feasibleCount).toBeGreaterThan(Math.floor(0.5 * FUZZ_SEEDS));
+    expect(FUZZ_SEEDS - feasibleCount).toBeGreaterThan(Math.floor(0.05 * FUZZ_SEEDS)); // infeasible coverage
+    expect(dpCount).toBeGreaterThan(Math.floor(0.1 * FUZZ_SEEDS));
     expect(frontierMismatches).toBe(0); // frontier oracle must never drift
   });
 });

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { solve } from "../src/solve.ts";
+import { computeFrontier } from "../src/dp.ts";
+import { reduceAll } from "../src/dominance.ts";
 import type { KnapsackGroup } from "../src/types.ts";
 
 /**
@@ -138,5 +140,17 @@ describe("frontier exposure (ADR-0001)", () => {
       capacity: 10,
     });
     expect(s.value).toBe(5); // oracle: solve(10) agrees with the lead point
+  });
+
+  test("computeFrontier as a direct export: same kinks solve() reports (advanced-caller contract)", () => {
+    // Public API (api-surface.txt) callable without solve(); the caller
+    // owns the validateProblem invariant (dp.ts doc) — here: dominance
+    // reduction mirrors what solve() feeds the sweep.
+    const direct = computeFrontier(reduceAll(groups), 1000);
+    const viaSolve = solve({ groups, capacity: 1000 }, { frontier: true });
+    expect(JSON.stringify(direct)).toBe(JSON.stringify(viaSolve.frontier));
+    // Degenerate guards, pinned at the export boundary.
+    expect(computeFrontier([], 5)).toEqual([{ weight: 0, value: 0 }]);
+    expect(computeFrontier(reduceAll(groups), -1)).toEqual([{ weight: 0, value: 0 }]);
   });
 });
