@@ -16,7 +16,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           # Pinned: paper §7.2 measurements and the bench baselines are
@@ -46,7 +46,7 @@ jobs:
           # Main pushes update the baseline; PRs compare against it.
           auto-push: ${{ github.ref == 'refs/heads/main' }}
       - name: Upload bench artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bench-${{ github.sha }}
           path: bench-output.txt
