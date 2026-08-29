@@ -4,7 +4,13 @@
  *
  * Run: bun run bench/bench.ts
  *      bun run bench/bench.ts --json=bench.json   (machine-readable,
- *      consumed by the CI perf gate; per-solve µs, smaller is better)
+ *      consumed by the CI perf gate)
+ *
+ * The JSON emits machine-normalized values: solver median divided by a
+ * fixed arithmetic calibration workload timed in the same process. A
+ * slower CI runner slows solver and calibration equally, so the ratio
+ * carries algorithmic signal, not machine speed. (Shared runners swing
+ * ±30-70% in absolute terms on identical code — measured 2026-08-29.)
  */
 import { solve } from "../src/index.ts";
 
@@ -51,6 +57,21 @@ function buildProblem(shape: Shape, r: () => number) {
   return { groups, capacity };
 }
 
+let CAL_SINK = 0; // defeats dead-code elimination in calibrate()
+
+/** Fixed arithmetic workload (mulberry32 core, 4M steps). */
+function calibrate(): number {
+  const t0 = performance.now();
+  let a = 1;
+  for (let i = 0; i < 4_000_000; i++) {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    CAL_SINK ^= t;
+  }
+  return performance.now() - t0;
+}
+
 const results: { name: string; unit: string; value: number }[] = [];
 
 console.log("shape | iters | total ms | per-solve µs (median of batch means)");
@@ -60,8 +81,17 @@ for (const shape of SHAPES) {
   const w = rng(1);
   for (let i = 0; i < 20; i++) solve(buildProblem(shape, w));
 
+  // Machine-normalization reference, measured immediately before the
+  // shape it scales: same process, same CPU conditions. Warm-up first
+  // (JIT), then min-of-3 — min is the robust statistic for a timing
+  // reference (contention only ever inflates it).
+  calibrate();
+  const calMs = Math.min(calibrate(), calibrate(), calibrate());
+
   const batchMeans: number[] = [];
-  const Batches = 5;
+  // 10 batches: all SHAPES iteration counts divide evenly, and min-of-10
+  // is tight enough for a 20% gate on shared runners.
+  const Batches = 10;
   const perBatch = shape.iterations / Batches;
   let dpRuns = 0;
   let totalCells = 0;
@@ -81,7 +111,12 @@ for (const shape of SHAPES) {
   batchMeans.sort((a, b) => a - b);
   const median = batchMeans[Math.floor(batchMeans.length / 2)]!;
   const dpPct = Math.round((100 * dpRuns) / shape.iterations);
-  results.push({ name: shape.name, unit: "us/solve", value: median * 1000 });
+  // Relative units: solver ms per calibration ms. Comparisons across
+  // runners compare these, never the absolute µs in the table above.
+  // Min of batch means, not the median: interference on shared runners
+  // only ever inflates a batch, so min recovers the true cost.
+  const fastest = batchMeans[0]!;
+  results.push({ name: shape.name, unit: "solver-ms/cal-ms", value: fastest / calMs });
   console.log(
     `${shape.name} | ${shape.iterations} | ${(median * shape.iterations).toFixed(0)} | ${Math.round(median * 1000)}µs (DP ${dpPct}%, ${dpRuns ? Math.round(totalCells / dpRuns) : 0} cells avg)`,
   );

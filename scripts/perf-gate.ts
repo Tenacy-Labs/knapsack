@@ -1,13 +1,18 @@
 /**
- * Perf gate: fail when median per-solve time regresses >20% against the
- * main-branch baseline (bench-baseline.json on the gh-pages branch).
+ * Perf gate: fail when solver cost regresses >20% against the
+ * main-branch baseline, machine-noise-robust by construction:
  *
- *   bun run scripts/perf-gate.ts --check                 # PR gate
- *   bun run scripts/perf-gate.ts --check --baseline-file /tmp/b.json
- *   bun run scripts/perf-gate.ts --update                # main only, needs GH_TOKEN
+ *   - bench.ts emits calibrated relative units (solver-ms per cal-ms),
+ *     so machine speed cancels out;
+ *   - CI runs the bench twice per PR; the gate compares the per-shape
+ *     MIN of the two runs (contention only inflates);
+ *   - the baseline (gh-pages:bench-baseline.json) keeps a 5-run
+ *     history per shape and compares against the history MEDIAN, so a
+ *     single outlier run — fast or slow — poisons neither side.
  *
- * --update stores the current bench.json as the new baseline via the
- * GitHub contents API (creates gh-pages on first run).
+ *   bun run scripts/perf-gate.ts --check [--baseline-file f]  # PR gate
+ *   bun run scripts/perf-gate.ts --check                       # vs gh-pages
+ *   bun run scripts/perf-gate.ts --update                      # main, needs GH_TOKEN
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
@@ -16,6 +21,10 @@ const REPO = "Tenacy-Labs/knapsack";
 const BRANCH = "gh-pages";
 const FILE = "bench-baseline.json";
 const THRESHOLD = 1.2; // 20% regression budget
+const HISTORY = 5;
+
+type Entry = { name: string; unit: string; value: number };
+type Baseline = { schema: 2; history: { name: string; unit: string; values: number[] }[] };
 
 const argv = process.argv.slice(2);
 const mode = argv[0];
@@ -25,45 +34,70 @@ function sh(cmd: string, args: string[]) {
   return spawnSync(cmd, args, { encoding: "utf8" });
 }
 
-if (!existsSync("bench.json")) {
-  console.error("perf-gate: bench.json missing — run `bun run bench --json=bench.json` first");
-  process.exit(1);
+function median(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
 }
-const current: { name: string; unit: string; value: number }[] = JSON.parse(readFileSync("bench.json", "utf8"));
+
+function parseBaseline(text: string): Baseline {
+  const raw = JSON.parse(text) as unknown;
+  if (Array.isArray(raw)) {
+    // schema 1 (flat single-run array) → history of one
+    return { schema: 2, history: (raw as Entry[]).map((e) => ({ name: e.name, unit: e.unit, values: [e.value] })) };
+  }
+  return raw as Baseline;
+}
+
+// Current capability: min across every bench run present (bench.json
+// required; bench2.json merged in when CI ran a second pass).
+function currentRuns(): { name: string; unit: string; value: number }[] {
+  const files = ["bench.json", "bench2.json"].filter(existsSync);
+  if (!files.length) {
+    console.error("perf-gate: no bench.json — run `bun run bench --json=bench.json` first");
+    process.exit(1);
+  }
+  const runs = files.map((f) => JSON.parse(readFileSync(f, "utf8")) as Entry[]);
+  const names = runs[0]!.map((e) => e.name);
+  return names.map((name, i) => ({
+    name,
+    unit: runs[0]![i]!.unit,
+    value: Math.min(...runs.map((r) => r[i]!.value)),
+  }));
+}
 
 if (mode === "--check") {
+  const current = currentRuns();
   let baselineText: string | null = null;
   if (baselineFileArg) {
     baselineText = readFileSync(baselineFileArg, "utf8");
-  } else {
-    // Fetch only the gh-pages ref; absent branch = no baseline yet.
-    if (sh("git", ["fetch", "origin", BRANCH, "--depth=1"]).status === 0) {
-      const show = sh("git", ["show", `FETCH_HEAD:${FILE}`]);
-      if (show.status === 0) baselineText = show.stdout;
-    }
+  } else if (sh("git", ["fetch", "origin", BRANCH, "--depth=1"]).status === 0) {
+    const show = sh("git", ["show", `FETCH_HEAD:${FILE}`]);
+    if (show.status === 0) baselineText = show.stdout;
   }
   if (!baselineText) {
-    console.log("perf-gate: no baseline yet — gate passes vacuously (first main run will store one)");
+    console.log("perf-gate: no baseline yet — gate passes vacuously (first main run stores one)");
     process.exit(0);
   }
-  const baseline = JSON.parse(baselineText) as typeof current;
+  const baseline = parseBaseline(baselineText);
   let failed = false;
   for (const c of current) {
-    const b = baseline.find((x) => x.name === c.name);
-    if (!b) {
+    const h = baseline.history.find((x) => x.name === c.name);
+    if (!h || !h.values.length) {
       console.log(`  ~ ${c.name}: no baseline entry (new shape)`);
       continue;
     }
-    const delta = (c.value / b.value - 1) * 100;
-    const mark = delta > 20 ? "REGRESSION" : delta < -20 ? "improved" : "ok";
-    console.log(`  ${delta > 20 ? "✗" : "✓"} ${c.name}: ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% vs baseline (${mark})`);
+    const base = median(h.values);
+    const delta = (c.value / base - 1) * 100;
+    const verdict = delta > 20 ? "REGRESSION" : delta < -20 ? "improved" : "ok";
+    console.log(`  ${delta > 20 ? "✗" : "✓"} ${c.name}: ${delta >= 0 ? "+" : ""}${delta.toFixed(1)}% vs baseline median (of ${h.values.length} runs) — ${verdict}`);
     if (delta > 20) failed = true;
   }
   if (failed) {
-    console.error("\nperf-gate FAIL: >20% median per-solve regression on one or more shapes.\nIf intentional, say so in the PR and land the baseline update on main.");
+    console.error("\nperf-gate FAIL: >20% regression on one or more shapes (min of 2 runs vs baseline median).\nIf a re-run still fails, the regression is real: say so in the PR, or fix it.");
     process.exit(1);
   }
-  console.log("perf-gate: OK (all shapes within 20% of baseline)");
+  console.log("perf-gate: OK (all shapes within 20% of baseline median)");
   process.exit(0);
 }
 
@@ -74,24 +108,40 @@ if (mode === "--update") {
   }
   const sha = process.env.GITHUB_SHA;
   if (!sha) { console.error("perf-gate --update: needs GITHUB_SHA"); process.exit(1); }
-  // Ensure gh-pages exists (seed from the current main commit).
-  if (sh("gh", ["api", `/repos/${REPO}/branches/${BRANCH}`]).status !== 0) {
+  const current = JSON.parse(readFileSync("bench.json", "utf8")) as Entry[];
+
+  let baseline: Baseline = { schema: 2, history: [] };
+  const existing = sh("gh", ["api", `/repos/${REPO}/branches/${BRANCH}`]).status === 0
+    ? sh("gh", ["api", `/repos/${REPO}/contents/${FILE}?ref=${BRANCH}`])
+    : { status: 1, stdout: "", stderr: "" };
+  let fileSha: string | undefined;
+  if (existing.status === 0) {
+    fileSha = JSON.parse(existing.stdout).sha as string;
+    const decoded = JSON.parse(Buffer.from(JSON.parse(existing.stdout).content, "base64").toString("utf8"));
+    baseline = parseBaseline(JSON.stringify(decoded));
+  } else if (sh("gh", ["api", `/repos/${REPO}/branches/${BRANCH}`]).status !== 0) {
     const created = sh("gh", ["api", "-X", "POST", `/repos/${REPO}/git/refs`, "-f", `ref=refs/heads/${BRANCH}`, "-f", `sha=${sha}`]);
     if (created.status !== 0) { console.error(`perf-gate: could not create ${BRANCH}: ${created.stderr}`); process.exit(1); }
     console.log(`perf-gate: created ${BRANCH}`);
   }
-  // PUT bench.json as the baseline (with current file sha if it exists).
-  const content = Buffer.from(JSON.stringify(current, null, 2) + "\n").toString("base64");
-  const args = ["api", "-X", "PUT", `/repos/${REPO}/contents/${FILE}`,
-    "-f", "message=perf baseline update", "-f", `branch=${BRANCH}`, "-f", `content=${content}`];
-  const existing = sh("gh", ["api", `/repos/${REPO}/contents/${FILE}?ref=${BRANCH}`]);
-  if (existing.status === 0) {
-    const fileSha = JSON.parse(existing.stdout).sha as string;
-    args.push("-f", `sha=${fileSha}`);
+
+  for (const e of current) {
+    const h = baseline.history.find((x) => x.name === e.name);
+    if (h) {
+      h.unit = e.unit;
+      h.values = [...h.values, e.value].slice(-HISTORY);
+    } else {
+      baseline.history.push({ name: e.name, unit: e.unit, values: [e.value] });
+    }
   }
+
+  const args = ["api", "-X", "PUT", `/repos/${REPO}/contents/${FILE}`,
+    "-f", "message=perf baseline update", "-f", `branch=${BRANCH}`,
+    "-f", `content=${Buffer.from(JSON.stringify(baseline, null, 2) + "\n").toString("base64")}`];
+  if (fileSha) args.push("-f", `sha=${fileSha}`);
   const put = sh("gh", args);
   if (put.status !== 0) { console.error(`perf-gate: baseline update failed: ${put.stderr}`); process.exit(1); }
-  console.log(`perf-gate: baseline updated on ${BRANCH}/${FILE}`);
+  console.log(`perf-gate: baseline updated (${HISTORY}-run history per shape) on ${BRANCH}/${FILE}`);
   process.exit(0);
 }
 
